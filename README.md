@@ -1,4 +1,7 @@
 ## How to use this repo
+### Installation
+1. Make sure you install python version 3.11 (make sure you check the check box for saving the path variable)
+2. Make sure you vscode is code is updated if vscode terminal throws errors you can run the same code in command prompt
 
 ### Setup Locally
 1. Clone the github repo on your machine and navigate to the insect_ui directory in command line
