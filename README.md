@@ -6,7 +6,7 @@
 3. Run `pip install -r requirements.txt` and `pip install -r requirements_ml.txt` on command line. Make sure to resolve all dependencies before proceeding
 4. Create a `models` folder inside insect_ui
 5. Run `pip install gdown`
-6. Run `!gdown 1eul2LTjjFX4ye3QXn2l4fNP6Cz1ltUIx -O cls_model.keras`,  `!gdown 1IdQXwGsizccY9TSPiL2dMmVFUAZ58NRr -O detect_model.pt` on commandline to load model weights. Then save loaded model weights to `models` folder
+6. Run `gdown 1eul2LTjjFX4ye3QXn2l4fNP6Cz1ltUIx -O cls_model.keras`,  `gdown 1IdQXwGsizccY9TSPiL2dMmVFUAZ58NRr -O detect_model.pt` on commandline to load model weights. Then save loaded model weights to `models` folder
 7. Run `python run.py` to start app locally
 
 ### Usage
