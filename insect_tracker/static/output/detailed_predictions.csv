@@ -1,0 +1,16 @@
+Image Name,Raw Prediction,Confidence,Threshold,Final Prediction
+insect_1.jpg,Other,0.668,0.0,Dipteran
+insect_10.jpg,Other,0.8547,0.0,Other
+insect_11.jpg,Other,0.8267,0.0,Other
+insect_12.jpg,Terrestrial,0.5573,0.4,Terrestrial
+insect_13.jpg,Other,0.7991,0.0,Other
+insect_14.jpg,Other,0.8529,0.0,Other
+insect_15.jpg,Other,0.8322,0.0,Other
+insect_2.jpg,Other,0.7681,0.0,Other
+insect_3.jpg,Other,0.8403,0.0,Other
+insect_4.jpg,Other,0.795,0.0,Other
+insect_5.jpg,Other,0.7933,0.0,Other
+insect_6.jpg,Other,0.687,0.0,Other
+insect_7.jpg,Other,0.92,0.0,Other
+insect_8.jpg,Other,0.7669,0.0,Other
+insect_9.jpg,Terrestrial,0.509,0.4,Terrestrial

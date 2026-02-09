@@ -1,170 +1,294 @@
 {% extends "layout.html" %}
 {% block content %}
 <style>
-    body {
-        margin: 0;
-        padding: 0;
-        font-family: 'Lexend', sans-serif;
-        background: 
-            linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), 
-            url("{{ url_for('static', filename='images/home.png') }}") no-repeat center center fixed;
-        background-size: cover;
-        color: white;
-        height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        text-align: center;
-        flex-direction: column;
-    }
+  body { margin:0; padding:0; font-family: 'Lexend', sans-serif; }
+  .full-bg {
+    background:
+      linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)),
+      url("{{ url_for('static', filename='images/home.png') }}") no-repeat center center fixed;
+    background-size: cover;
+    color: white;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 40px;
+  }
+  .container-wide { width: 1000px; max-width: 95%; margin: 0 auto; }
+  .card { background: rgba(0,0,0,0.35); padding: 22px; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.6); }
+  h1 { font-size: 2.1rem; margin-bottom: 6px; color: white; }
+  h2 { font-size: 1.6rem; margin-bottom: 12px; color: white; }
+  h3 { font-size: 1.3rem; margin-bottom: 10px; color: white; }
+  .upload-wrapper { margin-top: 18px; text-align:center; }
+  .btn { cursor:pointer; padding:8px 14px; border-radius:6px; border: none; }
+  .btn-white { background: white; color: black; font-weight: 700; }
+  .small { font-size:0.9rem; color:#ddd; }
+  img.preview { max-width:100%; border-radius:8px; border:2px solid #fff; display:block; margin: 8px auto; }
 
-    h1, h2, p {
-        text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.8);
-    }
+  /* Editor UI */
+  #inline-editor { margin-top: 26px; display:none; color: white; }
+  #editor-controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  #cropPreview { max-width:360px; border-radius:6px; border:2px solid #fff; display:block; }
+  .meta { font-size:0.95rem; color:#eee; margin-top:8px; }
+  .links a { display:inline-block; margin-right:8px; margin-top:8px; }
 
-    .home-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-start;
-        height: 70vh;
-        padding-top: 80px;
-        text-align: center;
-        color: white;
-        text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.6);
-        position: relative;
-        width: 100%;
-    }
-
-    .main-heading {
-        font-size: 3rem;
-        font-weight: bold;
-        margin-bottom: 25px;
-    }
-
-    .subheading {
-        font-size: 1.75rem;
-        margin-bottom: 15px;
-    }
-
-    .body-text {
-        font-size: 1.6rem;
-        color: white;
-    }
-
-    .photo-credit {
-        font-size: 0.85rem;
-        color: #cccccc;
-        margin-top: auto;
-        padding: 10px 0;
-        text-align: center;
-        width: 100%;
-        user-select: none;
-    }
-
-    .upload-wrapper {
-        margin-top: 20px;
-    }
-
-    .upload-wrapper input[type="file"] {
-        color: white;
-        font-size: 1.1rem;
-        text-align: center;
-        border: none;
-        background: none;
-    }
+  /* Loader overlay */
+  .overlay { position: fixed; top:0;left:0;width:100vw;height:100vh;background: rgba(0,0,0,0.6); z-index:999; }
+  .spinner { position: fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:1000; border:8px solid #f3f3f3; border-top:8px solid white; border-radius:50%; width:70px; height:70px; animation: spin 1s linear infinite; }
+  @keyframes spin { 0%{ transform: translate(-50%,-50%) rotate(0deg);} 100%{ transform: translate(-50%,-50%) rotate(360deg);} }
 </style>
 
-<div class="home-container">
-  <h1 style="color: #fdfdfd; text-shadow: 2px 2px 8px rgba(0,0,0,0.6); font-size: 2.8em; text-align: center;">
-        Upload your sticky trap image below!
-  </h1>
+<div class="full-bg">
+  <div class="container-wide">
+    <div class="card">
+      <h1>Upload your sticky trap image</h1>
+      <p class="small">Note: images and results are not stored permanently. Each new upload clears prior outputs.</p>
 
-<form method="POST" action="" enctype="multipart/form-data" onsubmit="showLoader()">
-  {{ form.hidden_tag() }}
+      <form method="POST" action="" enctype="multipart/form-data" onsubmit="showLoader()">
+        {{ form.hidden_tag() }}
 
-  <div class="upload-wrapper">
-    {{ form.picture.label() }}<br>
-    <label for="picture" class="mb-1"></label>
-    <div style="text-align: center;">
-      {{ form.picture(class="form-control-file") }}
-    </div>
-    {% if form.picture.errors %}
-      {% for error in form.picture.errors %}
-        <span class="text-danger">{{ error }}</span><br>
-      {% endfor %}
-    {% endif %}
+        <div class="upload-wrapper">
+          {{ form.picture.label() }}<br>
+          {{ form.picture(class="form-control-file") }}
+          {% if form.picture.errors %}
+            <div style="color:#ffaaaa; margin-top:6px;">
+              {% for err in form.picture.errors %} <div>{{ err }}</div> {% endfor %}
+            </div>
+          {% endif %}
 
-    <div style="margin-top: 30px; text-align: center;">
-      {{ form.submit(class="btn", style="background-color: white; color: black; font-weight: bold;") }}
+          <div style="margin-top:12px;">
+            {{ form.submit(class="btn btn-white") }}
+          </div>
+        </div>
+      </form>
+
+      {% if processed %}
+        <hr style="margin:22px 0; border-top:1px solid rgba(255,255,255,0.12);">
+        <h2 style="margin-bottom:8px;">Results</h2>
+
+        <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;">
+          <div style="flex:0 0 380px; text-align:center;">
+            <h4 class="small">Annotated Image</h4>
+            <img class="preview" src="{{ annotated_img }}" alt="Annotated output">
+            <div class="small meta">Downloads:</div>
+            <div class="links">
+              <a class="btn btn-white" href="{{ summary_csv }}">Summary CSV</a>
+              <a class="btn btn-white" href="{{ detailed_csv }}">Detailed CSV</a>
+              <a class="btn btn-white" href="{{ coco_json }}">COCO JSON</a>
+            </div>
+          </div>
+
+          <div style="flex:1 1 420px;">
+            <h4 class="small">Detected counts</h4>
+            <ul style="list-style:none; padding:0; margin:6px 0 0 0; color:white;">
+              {% for cls, count in class_counts.items() %}
+                <li><strong>{{ cls }}</strong>: {{ count }}</li>
+              {% endfor %}
+            </ul>
+
+            <p class="small" style="margin-top:12px;">
+              Use the inline editor below to review crops labeled <strong>Other</strong>.
+              Saving creates edited sidecar files (COCO + annotated image + summary) — original outputs remain unchanged.
+            </p>
+          </div>
+
+          <div><button id="upload-to-roboflow">Upload to Roboflow</button></div>
+        </div>
+      {% endif %}
+
+      <!-- Inline editor appears only after processed -->
+      <div id="inline-editor" class="card" style="margin-top:18px;">
+        <h3 style="margin-top:0;">Review 'Other' crops — correct labels</h3>
+
+        <div id="editor-controls">
+          <button id="prevCrop" class="btn" type="button">◀ Prev</button>
+          <button id="nextCrop" class="btn" type="button">Next ▶</button>
+
+          <label for="classSelect" style="margin-left:6px;">Change to:</label>
+          <select id="classSelect">
+            {% for c in ['Caddisfly','Dipteran','Mayfly','Other','Stonefly','Terrestrial'] %}
+              <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+
+          <button id="saveCrop" class="btn btn-white" type="button">Save</button>
+          <button id="upload-edited-to-roboflow" class="btn btn-white" type="button" style="margin-left:12px;">Upload Edited to Roboflow</button>  
+          <div id="editorStatus" class="small" style="margin-left:8px;"></div>
+        </div>
+
+        <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;">
+          <div style="flex:0 0 360px; text-align:center;">
+            <img id="cropPreview" src="" alt="crop preview" style="max-width:100%;" />
+            <div id="cropMeta" class="meta"></div>
+          </div>
+
+          <div style="flex:1; gap: 5px;">
+            <!-- Edited preview image removed; keep download links for edited assets -->
+            <div style="margin-top:8px;">
+              <a id="downloadEditedSummary" class="btn btn-white" style="display:none;" href="#" download>Download Edited Summary CSV</a>
+              <a id="downloadEditedCoco" class="btn btn-white" style="display:none;" href="#" download>Download Edited COCO JSON</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
-</form>
-{% if processed %}
-  <hr style="margin: 60px 0; border-top: 1px solid white; width: 80%;">
+</div>
 
-  <h2 class="subheading" style="color: white;">Annotated Image</h2>
-  <div>
-    <img src="{{ annotated_img }}" alt="Annotated Output" style="max-width: 80%; border: 2px solid white; border-radius: 10px;">
-  </div>
-
-  <h2 class="subheading" style="margin-top: 40px; color: white;">Detected Insect Counts</h2>
-  <ul style="list-style-type: none; padding: 0; font-size: 1.5rem;">
-    {% for cls, count in class_counts.items() %}
-      <li><strong>{{ cls }}</strong>: {{ count }}</li>
-    {% endfor %}
-  </ul>
-
-  <h2 class="subheading" style="margin-top: 40px; color: white;">Download Your Results</h2>
-  <ul style="list-style-type: none; font-size: 1.3rem;">
-    <li><a href="{{ summary_csv }}" class="btn" style="color: black; background-color: white; padding: 8px 20px; margin: 5px; text-decoration: none; border-radius: 5px;">Summary CSV</a></li>
-    <li><a href="{{ detailed_csv }}" class="btn" style="color: black; background-color: white; padding: 8px 20px; margin: 5px; text-decoration: none; border-radius: 5px;">Detailed Predictions CSV</a></li>
-    <li><a href="{{ zip_path }}" class="btn" style="color: black; background-color: white; padding: 8px 20px; margin: 5px; text-decoration: none; border-radius: 5px;">Download Individual Image Crops (ZIP)</a></li>
-      <li>
-    <a href="{{ coco_json }}" class="btn"
-       style="color: black; background-color: white; padding: 8px 20px; margin: 5px; text-decoration: none; border-radius: 5px;">
-      COCO Annotations (JSON)
-    </a>
-  </li>
-  </ul>
-{% endif %}
-<!-- Loading Spinner -->
+<!-- Loader (hidden until submit) -->
 <div id="loader" style="display:none;">
   <div class="overlay"></div>
   <div class="spinner"></div>
 </div>
 
-<style>
-  .overlay {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100vw; height: 100vh;
-    background-color: rgba(0, 0, 0, 0.6);
-    z-index: 999;
-  }
-
-  .spinner {
-    position: fixed;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 1000;
-    border: 8px solid #f3f3f3;
-    border-top: 8px solid white;
-    border-radius: 50%;
-    width: 70px;
-    height: 70px;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    0% { transform: translate(-50%, -50%) rotate(0deg); }
-    100% { transform: translate(-50%, -50%) rotate(360deg); }
-  }
-</style>
-
 <script>
+  // Local sample path so preview isn't blank during dev/test
+  // <-- PUT THE LOCAL FILE PATH FROM THE CONTAINER HERE -->
+  const SAMPLE_IMAGE_PATH = "/mnt/data/21ea9ffc-686f-45d5-833d-a86afa1e6eaf.png";
+
   function showLoader() {
     document.getElementById('loader').style.display = 'block';
   }
+
+  (function initEditor(){
+    const processed = {{ 'true' if processed else 'false' }};
+    if (!processed) return;
+
+    // show the editor
+    document.getElementById('inline-editor').style.display = 'block';
+
+    let items = [];
+    let idx = 0;
+
+    const cropPreview = document.getElementById('cropPreview');
+    const cropMeta = document.getElementById('cropMeta');
+    const classSelect = document.getElementById('classSelect');
+    const saveBtn = document.getElementById('saveCrop');
+    const prevBtn = document.getElementById('prevCrop');
+    const nextBtn = document.getElementById('nextCrop');
+    const status = document.getElementById('editorStatus');
+    const downloadEditedSummary = document.getElementById('downloadEditedSummary');
+    const downloadEditedCoco = document.getElementById('downloadEditedCoco');
+    const uploadEditedToRoboflowBtn = document.getElementById('upload-edited-to-roboflow');
+    const uploadOriginalToRoboflowBtn = document.getElementById('upload-to-roboflow');
+
+     uploadOriginalToRoboflowBtn.onclick = function() {
+      if (!confirm("Are you sure you want to upload the original image to Roboflow? This will overwrite the existing image in your Roboflow dataset.")) {
+        return;
+      }
+      status.textContent = "Uploading original image to Roboflow...";
+      fetch('/upload_original_to_roboflow', { method: 'POST' }).then(r => r.json()).then(j => {
+        if (j.ok) {
+          status.textContent = "Original image uploaded to Roboflow.";
+        } else {
+          status.textContent = "Upload failed: " + (j.error || "unknown error");
+        }
+      }).catch(e => {
+        status.textContent = "Upload failed (network).";
+        console.error(e);
+      });
+    };
+
+    uploadEditedToRoboflowBtn.onclick = function() {
+      if (!confirm("Are you sure you want to upload the edited image and annotations to Roboflow? This will overwrite the existing image and annotations in your Roboflow dataset.")) {
+        return;
+      }
+      status.textContent = "Uploading edited image and annotations to Roboflow...";
+      fetch('/upload_edited_to_roboflow', { method: 'POST' }).then(r => r.json()).then(j => {
+        if (j.ok) {
+          status.textContent = "Edited image and annotations uploaded to Roboflow.";
+        } else {
+          status.textContent = "Upload failed: " + (j.error || "unknown error");
+        }
+      }).catch(e => {
+        status.textContent = "Upload failed (network).";
+        console.error(e);
+      });
+    };
+
+    status.textContent = "Loading crops...";
+
+    fetch('/crop_list').then(r => r.json()).then(j => {
+      items = j.items || [];
+      if (!items.length) {
+        status.textContent = "No 'Other' crops to review.";
+        cropPreview.src = SAMPLE_IMAGE_PATH;
+        // hide download links if present
+        downloadEditedSummary.style.display = 'none';
+        downloadEditedCoco.style.display = 'none';
+        return;
+      }
+      idx = 0;
+      showIdx();
+    }).catch(e => {
+      console.error(e);
+      status.textContent = "Failed to load crops.";
+      cropPreview.src = SAMPLE_IMAGE_PATH;
+      downloadEditedSummary.style.display = 'none';
+      downloadEditedCoco.style.display = 'none';
+    });
+
+    function showIdx(){
+      if (!items.length) return;
+      const it = items[idx];
+      // add cache-buster so updated files show immediately
+      cropPreview.src = it.url + '?t=' + Date.now();
+      cropMeta.textContent = `${it.filename} — model: ${it.raw_prediction} (conf ${it.confidence}) — final: ${it.final}`;
+      // choose default option: model raw if available, else Other
+      if (it.raw_prediction && Array.from(classSelect.options).some(o => o.value === it.raw_prediction)) {
+        classSelect.value = it.raw_prediction;
+      } else {
+        classSelect.value = 'Other';
+      }
+      status.textContent = `${idx+1} / ${items.length}`;
+    }
+
+    prevBtn.onclick = function(){ if(!items.length) return; idx = (idx - 1 + items.length) % items.length; showIdx(); };
+    nextBtn.onclick = function(){ if(!items.length) return; idx = (idx + 1) % items.length; showIdx(); };
+
+    saveBtn.onclick = function(){
+      if (!items.length) return;
+      const it = items[idx];
+      const newClass = classSelect.value;
+      status.textContent = "Saving...";
+      saveBtn.disabled = true;
+
+      fetch('/update_crop', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ filename: it.filename, new_class: newClass })
+      }).then(r => r.json()).then(j => {
+        saveBtn.disabled = false;
+        if (j.ok) {
+          status.textContent = "Saved.";
+          // create download links if server provided them
+          if (j.edited_files) {
+            const base = '/static/';
+            if (j.edited_files.summary_csv_edited) {
+              downloadEditedSummary.href = base + j.edited_files.summary_csv_edited;
+              downloadEditedSummary.style.display = 'inline-block';
+            }
+            if (j.edited_files.coco_json_edited) {
+              downloadEditedCoco.href = base + j.edited_files.coco_json_edited;
+              downloadEditedCoco.style.display = 'inline-block';
+            }
+            // Update in-memory item to new final (keeps it visible unless you remove it intentionally)
+            items[idx].final = newClass;
+            showIdx();
+          } else {
+            status.textContent = "Saved (no edited assets produced).";
+          }
+        } else {
+          status.textContent = "Save failed.";
+          console.error(j);
+        }
+      }).catch(e => {
+        saveBtn.disabled = false;
+        status.textContent = "Save failed (network).";
+        console.error(e);
+      });
+    };
+    })();
 </script>
 {% endblock %}

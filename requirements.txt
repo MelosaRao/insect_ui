@@ -17,3 +17,6 @@ SQLAlchemy==2.0.41
 typing_extensions==4.14.1
 Werkzeug==3.1.3
 WTForms==3.2.1
+pillow
+roboflow
+dot-env

@@ -1,0 +1,152 @@
+{
+  "insect_1.jpg": {
+    "bbox": [
+      155,
+      140,
+      24,
+      22
+    ],
+    "score": 0.8109143376350403,
+    "category": "Dipteran"
+  },
+  "insect_2.jpg": {
+    "bbox": [
+      0,
+      11,
+      17,
+      23
+    ],
+    "score": 0.7039150595664978,
+    "category": "Other"
+  },
+  "insect_3.jpg": {
+    "bbox": [
+      119,
+      131,
+      26,
+      23
+    ],
+    "score": 0.6164411306381226,
+    "category": "Other"
+  },
+  "insect_4.jpg": {
+    "bbox": [
+      124,
+      187,
+      12,
+      9
+    ],
+    "score": 0.5844137668609619,
+    "category": "Other"
+  },
+  "insect_5.jpg": {
+    "bbox": [
+      69,
+      89,
+      16,
+      13
+    ],
+    "score": 0.5611132383346558,
+    "category": "Other"
+  },
+  "insect_6.jpg": {
+    "bbox": [
+      155,
+      102,
+      13,
+      17
+    ],
+    "score": 0.43248891830444336,
+    "category": "Other"
+  },
+  "insect_7.jpg": {
+    "bbox": [
+      144,
+      0,
+      23,
+      15
+    ],
+    "score": 0.4253784120082855,
+    "category": "Other"
+  },
+  "insect_8.jpg": {
+    "bbox": [
+      162,
+      72,
+      17,
+      16
+    ],
+    "score": 0.37852150201797485,
+    "category": "Other"
+  },
+  "insect_9.jpg": {
+    "bbox": [
+      0,
+      161,
+      56,
+      36
+    ],
+    "score": 0.3509497344493866,
+    "category": "Terrestrial"
+  },
+  "insect_10.jpg": {
+    "bbox": [
+      52,
+      13,
+      8,
+      9
+    ],
+    "score": 0.34742945432662964,
+    "category": "Other"
+  },
+  "insect_11.jpg": {
+    "bbox": [
+      163,
+      95,
+      16,
+      44
+    ],
+    "score": 0.30012160539627075,
+    "category": "Other"
+  },
+  "insect_12.jpg": {
+    "bbox": [
+      0,
+      54,
+      54,
+      61
+    ],
+    "score": 0.2876265347003937,
+    "category": "Terrestrial"
+  },
+  "insect_13.jpg": {
+    "bbox": [
+      54,
+      109,
+      16,
+      20
+    ],
+    "score": 0.27555620670318604,
+    "category": "Other"
+  },
+  "insect_14.jpg": {
+    "bbox": [
+      80,
+      91,
+      28,
+      28
+    ],
+    "score": 0.2052789330482483,
+    "category": "Other"
+  },
+  "insect_15.jpg": {
+    "bbox": [
+      8,
+      0,
+      23,
+      5
+    ],
+    "score": 0.2031322568655014,
+    "category": "Other"
+  }
+}

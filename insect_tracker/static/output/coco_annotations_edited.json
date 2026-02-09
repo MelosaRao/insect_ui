@@ -1,0 +1,233 @@
+{
+  "images": [
+    {
+      "id": 1,
+      "file_name": "small_box.png",
+      "height": 197,
+      "width": 180
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [
+        155,
+        140,
+        24,
+        22
+      ],
+      "area": 528,
+      "iscrowd": 0
+    },
+    {
+      "id": 2,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        0,
+        11,
+        17,
+        23
+      ],
+      "area": 391,
+      "iscrowd": 0
+    },
+    {
+      "id": 3,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        119,
+        131,
+        26,
+        23
+      ],
+      "area": 598,
+      "iscrowd": 0
+    },
+    {
+      "id": 4,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        124,
+        187,
+        12,
+        9
+      ],
+      "area": 108,
+      "iscrowd": 0
+    },
+    {
+      "id": 5,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        69,
+        89,
+        16,
+        13
+      ],
+      "area": 208,
+      "iscrowd": 0
+    },
+    {
+      "id": 6,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        155,
+        102,
+        13,
+        17
+      ],
+      "area": 221,
+      "iscrowd": 0
+    },
+    {
+      "id": 7,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        144,
+        0,
+        23,
+        15
+      ],
+      "area": 345,
+      "iscrowd": 0
+    },
+    {
+      "id": 8,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        162,
+        72,
+        17,
+        16
+      ],
+      "area": 272,
+      "iscrowd": 0
+    },
+    {
+      "id": 9,
+      "image_id": 1,
+      "category_id": 5,
+      "bbox": [
+        0,
+        161,
+        56,
+        36
+      ],
+      "area": 2016,
+      "iscrowd": 0
+    },
+    {
+      "id": 10,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        52,
+        13,
+        8,
+        9
+      ],
+      "area": 72,
+      "iscrowd": 0
+    },
+    {
+      "id": 11,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        163,
+        95,
+        16,
+        44
+      ],
+      "area": 704,
+      "iscrowd": 0
+    },
+    {
+      "id": 12,
+      "image_id": 1,
+      "category_id": 5,
+      "bbox": [
+        0,
+        54,
+        54,
+        61
+      ],
+      "area": 3294,
+      "iscrowd": 0
+    },
+    {
+      "id": 13,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        54,
+        109,
+        16,
+        20
+      ],
+      "area": 320,
+      "iscrowd": 0
+    },
+    {
+      "id": 14,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        80,
+        91,
+        28,
+        28
+      ],
+      "area": 784,
+      "iscrowd": 0
+    },
+    {
+      "id": 15,
+      "image_id": 1,
+      "category_id": 3,
+      "bbox": [
+        8,
+        0,
+        23,
+        5
+      ],
+      "area": 115,
+      "iscrowd": 0
+    }
+  ],
+  "categories": [
+    {
+      "id": 0,
+      "name": "Caddisfly"
+    },
+    {
+      "id": 1,
+      "name": "Dipteran"
+    },
+    {
+      "id": 2,
+      "name": "Mayfly"
+    },
+    {
+      "id": 3,
+      "name": "Other"
+    },
+    {
+      "id": 4,
+      "name": "Stonefly"
+    },
+    {
+      "id": 5,
+      "name": "Terrestrial"
+    }
+  ]
+}

@@ -183,6 +183,16 @@ def run_inference(image_path, output_dir, original_filename):
             if file_name in annotations_map:
                 annotations_map[file_name]["category"] = final_class
 
+        # Persist annotations_map so later edits can refer to all original detections
+    ann_map_path = os.path.join(output_dir, 'annotations_map.json')
+    try:
+        with open(ann_map_path, 'w', encoding='utf-8') as af:
+            json.dump(annotations_map, af, indent=2)
+        print(f"✅ Wrote annotations_map to: {ann_map_path}")
+    except Exception as e:
+        print("Warning: failed to write annotations_map.json:", e)
+
+
     # --- Summary CSV ---
     with open(summary_csv, 'w', newline='') as f:
         writer = csv.writer(f)
@@ -195,6 +205,73 @@ def run_inference(image_path, output_dir, original_filename):
     coco_dict = convert_to_coco(annotations_map, original_filename,image_path)
     with open(coco_json, 'w') as f:
         json.dump(coco_dict, f, indent=4)
+
+    '''
+
+    # === CONFIGURATION ===
+    coco_json_path = coco_json # Path to your COCO JSON
+    roboflow_api_key = "TS1niacLXvvWTierCKCT" # Get this from https://app.roboflow.com
+    workspace = "insectai" # Lowercase
+    project = "results_test" # Lowercase
+
+    # === LOAD COCO JSON ===
+    with open(coco_json_path, "r") as f:
+        coco = json.load(f)
+
+    # Get image metadata
+    image_filename = os.path.basename(image_path)
+    image_entry = next((img for img in coco['images'] if img['file_name'] == image_filename), None)
+
+    if not image_entry:
+        raise ValueError("Image not found in COCO JSON")
+
+    image_id = image_entry['id']
+    image_width = image_entry['width']
+    image_height = image_entry['height']
+
+    # Map category IDs to names
+    category_map = {cat['id']: cat['name'] for cat in coco['categories']}
+
+    # Collect annotations for this image
+    annotations = [
+    {
+    "x": ann['bbox'][0] + ann['bbox'][2] / 2, # COCO bbox: [x, y, width, height]
+    "y": ann['bbox'][1] + ann['bbox'][3] / 2,
+    "width": ann['bbox'][2],
+    "height": ann['bbox'][3],
+    "class": category_map[ann['category_id']]
+    }
+    for ann in coco['annotations']
+    if ann['image_id'] == image_id
+    ]
+
+    # Prepare Roboflow annotation format
+    roboflow_annotation = {
+    "image": image_filename,
+    "annotations": annotations
+    }
+
+    # Save temporary annotation JSON
+    roboflow_json_path = "roboflow-format.json"
+    with open(roboflow_json_path, "w") as f:
+        json.dump(roboflow_annotation, f)
+
+    # === UPLOAD TO ROBOFLOW ===
+    upload_url = f"https://api.roboflow.com/dataset/{project}/upload?api_key={roboflow_api_key}"
+
+    with open(image_path, "rb") as img_file, open(roboflow_json_path, "rb") as ann_file:
+        response = requests.post(upload_url, files={
+        "image": img_file,
+        "annotation": ann_file
+        })
+
+    # === RESPONSE ===
+    if response.ok:
+        print("Upload successful!")
+        print(response.json())
+    else:
+        print("Upload failed:")
+        print(response.status_code, response.text)'''
 
     visualize_coco_annotations(coco_json, image_path, annotated_img_path)
 
