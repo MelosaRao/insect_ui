@@ -4,10 +4,10 @@
 2. Make sure you vscode is updated if vscode terminal throws errors you can run the same code in command prompt
 
 ### Setup Locally
-1. Clone the github repo on your machine, navigate to the directory of your choice in command line run(this is with ssh): git clone -b UI_Improved git@github.com:MelosaRao/insect_ui.git
+1. Clone the github repo on your machine, navigate to the directory of your choice in command line run(this is with ssh): `git clone -b UI_Improved git@github.com:MelosaRao/insect_ui.git`
 2. Navigate to the insect_ui directory that you just cloned and create and activate virtual environmennt (optional but recommended)
-   - For windows to create: python -m venv myenv or for mac to create: python3 -m venv myenv
-   - For windows to activate: myenv\Scripts\activate.bat or for mac to activate: source myenv/bin/activate
+   - For windows to create: `python -m venv myenv` or for mac to create: `python3 -m venv myenv`
+   - For windows to activate: `myenv\Scripts\activate.bat` or for mac to activate: `source myenv/bin/activate`
 4. Run `pip install -r requirements.txt` and `pip install -r requirements_ml.txt` on command line. Make sure to resolve all dependencies before proceeding
 5. Create a `models` folder inside insect_ui
 6. Run `pip install gdown`
@@ -16,7 +16,6 @@
 
 ### Usage
 1. Run `python run.py` to start app locally
-2. Create a new account and login
 3. Click on upload page on top menu
 4. Upload your image and click submit
 5. Results will be displayed
