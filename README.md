@@ -4,8 +4,8 @@
 2. Make sure you vscode is updated if vscode terminal throws errors you can run the same code in command prompt
 
 ### Setup Locally
-1. Clone the github repo on your machine and navigate to the insect_ui directory in command line for ssh: git clone -b UI_Improved git@github.com:MelosaRao/insect_ui.git
-2. Create and activate virtual environmennt (optional but recommended) For windows: python -m venv myenv or for mac python3 -m venv myenv
+1. Clone the github repo on your machine, navigate to the directory of your choice in command line for ssh: git clone -b UI_Improved git@github.com:MelosaRao/insect_ui.git
+2. Navigate to the insect_ui directory that you just cloned and create and activate virtual environmennt (optional but recommended) For windows: python -m venv myenv or for mac python3 -m venv myenv
 3. Run `pip install -r requirements.txt` and `pip install -r requirements_ml.txt` on command line. Make sure to resolve all dependencies before proceeding
 4. Create a `models` folder inside insect_ui
 5. Run `pip install gdown`
