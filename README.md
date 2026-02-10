@@ -5,12 +5,14 @@
 
 ### Setup Locally
 1. Clone the github repo on your machine, navigate to the directory of your choice in command line for ssh: git clone -b UI_Improved git@github.com:MelosaRao/insect_ui.git
-2. Navigate to the insect_ui directory that you just cloned and create and activate virtual environmennt (optional but recommended) For windows: python -m venv myenv or for mac python3 -m venv myenv
-3. Run `pip install -r requirements.txt` and `pip install -r requirements_ml.txt` on command line. Make sure to resolve all dependencies before proceeding
-4. Create a `models` folder inside insect_ui
-5. Run `pip install gdown`
-6. Run `gdown 14iCE6ps3WOSHPAmM5tzlrEX_IiROb4Zr -O cls_model.keras`,  `gdown 1IdQXwGsizccY9TSPiL2dMmVFUAZ58NRr -O detect_model.pt` on commandline to load model weights. Then save loaded model weights to `models` folder
-7. Run `python run.py` to start app locally
+2. Navigate to the insect_ui directory that you just cloned and create and activate virtual environmennt (optional but recommended)
+   - For windows to create: python -m venv myenv or for mac to create: python3 -m venv myenv
+   - For windows to activate: myenv\Scripts\activate.bat or for mac to activate: source myenv/bin/activate
+4. Run `pip install -r requirements.txt` and `pip install -r requirements_ml.txt` on command line. Make sure to resolve all dependencies before proceeding
+5. Create a `models` folder inside insect_ui
+6. Run `pip install gdown`
+7. Run `gdown 14iCE6ps3WOSHPAmM5tzlrEX_IiROb4Zr -O cls_model.keras`,  `gdown 1IdQXwGsizccY9TSPiL2dMmVFUAZ58NRr -O detect_model.pt` on commandline to load model weights. Then save loaded model weights to `models` folder
+8. Run `python run.py` to start app locally
 
 ### Usage
 1. Run `python run.py` to start app locally
