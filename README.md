@@ -1,7 +1,7 @@
 ## How to use this repo
 ### Installation
 1. Make sure you install python version 3.11 (make sure you check the check box for saving the path variable though it also works on 3.12 on colab, we have observed issues with the newer 3.13 version)
-2. Make sure you vscode is updated if vscode terminal throws errors you can run the same code in command prompt
+2. Make sure your vscode is updated if vscode terminal throws errors you can run the same code in command prompt
 
 ### Setup Locally
 1. Clone the github repo on your machine, navigate to the directory of your choice in command line run(this is with ssh): `git clone -b UI_Improved git@github.com:MelosaRao/insect_ui.git`
