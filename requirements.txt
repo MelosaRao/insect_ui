@@ -20,3 +20,4 @@ WTForms==3.2.1
 pillow
 roboflow
 dot-env
+requests

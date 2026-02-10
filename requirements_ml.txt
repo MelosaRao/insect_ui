@@ -1,15 +1,10 @@
 # TensorFlow and Keras (use TensorFlow's integrated Keras)
-tensorflow==2.18.0
-keras== 3.8.0  # Ensure compatibility with TensorFlow 2.x
+tensorflow==2.19.0
+keras==3.10.0
 
 # PyTorch and dependencies (needed for Ultralytics and SAHI)
-torch==2.6.0
-torchvision==0.21.0
-
-# Ensure compatibility of CUDA and cuDNN with TensorFlow
-# TensorFlow 2.18.0 requires CUDA 11.2 and cuDNN 8.1
-nvidia-cuda-runtime-cu11==11.8.89
-nvidia-cudnn-cu11==9.10.2.21
+torch==2.9.0
+torchvision==0.24.0
 
 # Ultralytics (YOLOv5, etc.)
 ultralytics==8.3.168

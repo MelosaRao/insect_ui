@@ -28,3 +28,7 @@ myenv/
 #models
 models/cls_model.keras
 models/detect_model.pt
+old_models/cls_model.keras
+
+insect_tracker/static/output/
+insect_tracker/static/trap_images/
