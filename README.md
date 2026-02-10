@@ -4,7 +4,7 @@
 2. Make sure you vscode is updated if vscode terminal throws errors you can run the same code in command prompt
 
 ### Setup Locally
-1. Clone the github repo on your machine, navigate to the directory of your choice in command line for ssh: git clone -b UI_Improved git@github.com:MelosaRao/insect_ui.git
+1. Clone the github repo on your machine, navigate to the directory of your choice in command line run(this is with ssh): git clone -b UI_Improved git@github.com:MelosaRao/insect_ui.git
 2. Navigate to the insect_ui directory that you just cloned and create and activate virtual environmennt (optional but recommended)
    - For windows to create: python -m venv myenv or for mac to create: python3 -m venv myenv
    - For windows to activate: myenv\Scripts\activate.bat or for mac to activate: source myenv/bin/activate
