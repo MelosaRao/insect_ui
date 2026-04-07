@@ -234,24 +234,6 @@ def crop_list():
         except Exception as e:
             app.logger.warning("crop_list: failed to read detailed CSV %s: %s", detailed_csv, e)
 
-    # fallback: list files in cropped_results
-    if not items and os.path.isdir(cropped):
-        try:
-            for fname in sorted(os.listdir(cropped)):
-                if not fname.lower().endswith(('.jpg', '.jpeg', '.png')):
-                    continue
-                rel = os.path.join('output', 'cropped_results', fname).replace('\\', '/')
-                url = url_for('static', filename=rel)
-                items.append({
-                    "filename": fname,
-                    "raw_prediction": "",
-                    "confidence": "",
-                    "final": "Other",
-                    "url": url
-                })
-        except Exception as e:
-            app.logger.warning("crop_list: failed to list cropped folder %s: %s", cropped, e)
-
     return jsonify({"items": items})
 
 # ------------------------------
