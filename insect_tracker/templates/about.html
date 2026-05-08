@@ -37,8 +37,8 @@
 
   <h2 class="text-3xl font-semibold mt-10 mb-4 text-white">Machine Learning Models</h2>
   <p class="mb-4 text-lg leading-relaxed">
-    We trained a YOLOv8 segmentation model to detect insect regions from trap images. All segmented instances are labeled as “insect” and passed to a classification model for taxonomic identification.
-    Our best YOLOv8 segmentation model achieved an mAP of <strong>~0.6</strong> on validation and <strong>~0.58</strong> on test data.
+    We trained a YOLOv8 object detection model to detect insect regions from trap images. All segmented instances are labeled as “insect” and passed to a Resnet classification model for taxonomic identification.
+    Our best YOLOv8 segmentation model achieved an mAP of <strong>~0.7</strong> on validation and <strong>~0.8</strong> on test data. Our classification model achieved an accuracy of <strong>0.91</strong> on the test set, with strong performance across most taxa. The "other" class proved more difficult to classify accurately, likely due to its heterogeneity and lower representation in the training data.
   </p>
 
   <p class="mb-6 text-lg leading-relaxed">

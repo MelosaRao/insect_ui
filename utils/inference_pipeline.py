@@ -36,11 +36,14 @@ detection_model = AutoDetectionModel.from_pretrained(
 
 def get_color_map(categories):
     base_colors = [
-        (255, 0, 0), (0, 255, 0), (0, 0, 255),
-        (255, 255, 0), (255, 0, 255), (0, 255, 255),
-        (128, 0, 128), (0, 128, 128), (128, 128, 0),
-        (255, 165, 0),
+        (0, 0, 255),      # Red
+        (0, 255, 0),      # Green
+        (255, 0, 0),      # Blue
+        (0, 255, 255),    # Yellow
+        (255, 0, 255),    # Magenta
+        (255, 255, 0),    # Cyan
     ]
+
     return {cat['id']: base_colors[i % len(base_colors)] for i, cat in enumerate(categories)}
 
 def crop_predictions_from_sahi(image_path, sahi_result, conf_thresh=0.05):
@@ -105,7 +108,7 @@ def visualize_coco_annotations(coco_json_path, image_path, output_path):
         category_id = ann['category_id']
         color = color_map[category_id]
         label = categories[category_id]
-        cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
+        cv2.rectangle(img, (x, y), (x + w, y + h), color, 4)
         cv2.putText(img, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -146,9 +149,8 @@ def run_inference(image_path, output_dir, original_filename):
     print(f"✂️  Saved {len(crops)} crops")
 
     # --- Classification ---
+    confidences = []
     class_counts = defaultdict(int)
-    for cls in class_names:
-        os.makedirs(os.path.join(output_dir, cls), exist_ok=True)
 
     with open(detailed_csv, 'w', newline='') as f:
         writer = csv.writer(f)
@@ -166,6 +168,7 @@ def run_inference(image_path, output_dir, original_filename):
             preds = model_cls.predict(img_batch, verbose=0)[0]
             pred_idx = np.argmax(preds)
             confidence = float(preds[pred_idx])
+            confidences.append(confidence)
             threshold = class_thresholds.get(pred_idx, 0.5)
 
             final_idx = pred_idx if confidence >= threshold else OTHER_IDX
@@ -184,6 +187,8 @@ def run_inference(image_path, output_dir, original_filename):
                 annotations_map[file_name]["category"] = final_class
 
         # Persist annotations_map so later edits can refer to all original detections
+    avg_confidence = round(sum(confidences) / len(confidences), 4) if confidences else 0.0
+    avg_confidence = round(avg_confidence * 100, 2)
     ann_map_path = os.path.join(output_dir, 'annotations_map.json')
     try:
         with open(ann_map_path, 'w', encoding='utf-8') as af:
@@ -205,73 +210,6 @@ def run_inference(image_path, output_dir, original_filename):
     coco_dict = convert_to_coco(annotations_map, original_filename,image_path)
     with open(coco_json, 'w') as f:
         json.dump(coco_dict, f, indent=4)
-
-    '''
-
-    # === CONFIGURATION ===
-    coco_json_path = coco_json # Path to your COCO JSON
-    roboflow_api_key = "TS1niacLXvvWTierCKCT" # Get this from https://app.roboflow.com
-    workspace = "insectai" # Lowercase
-    project = "results_test" # Lowercase
-
-    # === LOAD COCO JSON ===
-    with open(coco_json_path, "r") as f:
-        coco = json.load(f)
-
-    # Get image metadata
-    image_filename = os.path.basename(image_path)
-    image_entry = next((img for img in coco['images'] if img['file_name'] == image_filename), None)
-
-    if not image_entry:
-        raise ValueError("Image not found in COCO JSON")
-
-    image_id = image_entry['id']
-    image_width = image_entry['width']
-    image_height = image_entry['height']
-
-    # Map category IDs to names
-    category_map = {cat['id']: cat['name'] for cat in coco['categories']}
-
-    # Collect annotations for this image
-    annotations = [
-    {
-    "x": ann['bbox'][0] + ann['bbox'][2] / 2, # COCO bbox: [x, y, width, height]
-    "y": ann['bbox'][1] + ann['bbox'][3] / 2,
-    "width": ann['bbox'][2],
-    "height": ann['bbox'][3],
-    "class": category_map[ann['category_id']]
-    }
-    for ann in coco['annotations']
-    if ann['image_id'] == image_id
-    ]
-
-    # Prepare Roboflow annotation format
-    roboflow_annotation = {
-    "image": image_filename,
-    "annotations": annotations
-    }
-
-    # Save temporary annotation JSON
-    roboflow_json_path = "roboflow-format.json"
-    with open(roboflow_json_path, "w") as f:
-        json.dump(roboflow_annotation, f)
-
-    # === UPLOAD TO ROBOFLOW ===
-    upload_url = f"https://api.roboflow.com/dataset/{project}/upload?api_key={roboflow_api_key}"
-
-    with open(image_path, "rb") as img_file, open(roboflow_json_path, "rb") as ann_file:
-        response = requests.post(upload_url, files={
-        "image": img_file,
-        "annotation": ann_file
-        })
-
-    # === RESPONSE ===
-    if response.ok:
-        print("Upload successful!")
-        print(response.json())
-    else:
-        print("Upload failed:")
-        print(response.status_code, response.text)'''
 
     visualize_coco_annotations(coco_json, image_path, annotated_img_path)
 
@@ -300,7 +238,7 @@ def run_inference(image_path, output_dir, original_filename):
         "detailed_csv": detailed_csv,
         "coco_json": coco_json,
         "annotated_img": annotated_img_path,
-        
+        "avg_confidence": avg_confidence,
     }
 
 

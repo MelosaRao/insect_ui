@@ -9,12 +9,10 @@ from insect_tracker import app, db, bcrypt
 from insect_tracker.forms import UploadTrapImage
 from utils.inference_pipeline import run_inference  # uses output_dir you pass
 from wtforms.validators import DataRequired
-import os
 import json
-import smtplib
-from email.mime.text import MIMEText
 from roboflow import Roboflow
 from dotenv import load_dotenv
+import uuid
 
 # -------------------------------
 # Load environment variables from .env
@@ -46,18 +44,21 @@ def save_picture(form_picture):
     i.save(picture_path)
     return picture_fn
 
-def save_trap_picture(form_picture):
+def save_trap_picture(form_picture, request_id):
     random_hex = secrets.token_hex(8)
     _, f_ext = os.path.splitext(form_picture.filename)
     picture_fn = random_hex + f_ext
-    folder = os.path.join(app.root_path, 'static', 'trap_images')
+
+    folder = os.path.join(app.root_path, 'static', 'trap_images', request_id)
     os.makedirs(folder, exist_ok=True)
+
     picture_path = os.path.join(folder, picture_fn)
 
     i = Image.open(form_picture)
     i = i.convert("RGB")
     i.save(picture_path, quality=100)
-    return picture_fn
+
+    return picture_fn, folder
 
 # ------------------------------
 # Basic pages
@@ -78,44 +79,25 @@ def about():
 def upload():
     form = UploadTrapImage()
     if form.validate_on_submit():
+        request_id = str(uuid.uuid4())
         if form.picture.data:
-            # === 1. Clean up old trap images (keep only the newly uploaded image) ===
-            trap_folder = os.path.join(app.root_path, 'static', 'trap_images')
-            os.makedirs(trap_folder, exist_ok=True)
-            for f in os.listdir(trap_folder):
-                try:
-                    os.remove(os.path.join(trap_folder, f))
-                except Exception:
-                    pass
-
-            # === 2. Reset the single output folder: static/output ===
-            output_root = os.path.join(app.root_path, 'static', 'output')
-            if os.path.exists(output_root):
-                # remove everything inside output (do not remove the output folder itself)
-                for entry in os.listdir(output_root):
-                    path = os.path.join(output_root, entry)
-                    try:
-                        if os.path.isdir(path):
-                            shutil.rmtree(path)
-                        else:
-                            os.remove(path)
-                    except Exception:
-                        app.logger.warning("Failed to remove old output entry: %s", path)
-            else:
-                os.makedirs(output_root, exist_ok=True)
-
-            # === 3. Save new uploaded trap image ===
-            original_filename = form.picture.data.filename
-            picture_file = save_trap_picture(form.picture.data)
+           
+            picture_file, trap_folder = save_trap_picture(form.picture.data, request_id)
             image_path = os.path.join(trap_folder, picture_file)
 
-            # === 4. Set output_dir to the single output root (will hold results) ===
-            output_dir = output_root  # single consistent output directory used by inference
+            # Base output folder
+            output_root = os.path.join(app.root_path, 'static', 'output')
+            os.makedirs(output_root, exist_ok=True)
+
+            # Unique folder per request
+            output_dir = os.path.join(output_root, request_id)
+            os.makedirs(output_dir, exist_ok=True)
 
             # Ensure the subfolders expected by inference exist (inference will create them too)
             os.makedirs(os.path.join(output_dir, 'cropped_results'), exist_ok=True)
 
-            # === 5. Run inference pipeline (it writes outputs into output_dir) ===
+            # Run inference pipeline (it writes outputs into output_dir) ===
+            original_filename = form.picture.data.filename
             results = run_inference(image_path=image_path, output_dir=output_dir, original_filename=original_filename)
 
             # === 6. Pass results to the template ===
@@ -126,11 +108,13 @@ def upload():
                 form=form,
                 processed=True,
                 class_counts=results.get('class_counts', {}),
-                annotated_img=url_for('static', filename=f'output/annotated_output.jpg'),
-                summary_csv=url_for('download_file', filename=f'output/class_summary.csv'),
-                detailed_csv=url_for('download_file', filename=f'output/detailed_predictions.csv'),
-                zip_path=url_for('download_file', filename=f'output/results.zip'),
-                coco_json=url_for('download_file', filename=f'output/coco_annotations.json')
+                avg_confidence=results.get('avg_confidence', 0),
+                request_id=request_id,
+                annotated_img=url_for('static', filename=f'output/{request_id}/annotated_output.jpg'),
+                summary_csv=url_for('download_file', filename=f'output/{request_id}/class_summary.csv'),
+                detailed_csv=url_for('download_file', filename=f'output/{request_id}/detailed_predictions.csv'),
+                zip_path=url_for('download_file', filename=f'output/{request_id}/results.zip'),
+                coco_json=url_for('download_file', filename=f'output/{request_id}/coco_annotations.json'),
             )
 
     return render_template('upload.html', title='Image Upload', form=form)
@@ -146,8 +130,8 @@ def download_file(filename):
 # ------------------------------
 # Utility paths (single output)
 # ------------------------------
-def _paths():
-    base = os.path.join(app.root_path, 'static', 'output')
+def _paths(request_id):
+    base = os.path.join(app.root_path, 'static', 'output', request_id)
     return {
         "output_dir": base,
         "cropped_dir": os.path.join(base, "cropped_results"),
@@ -203,7 +187,11 @@ def crop_list():
     It prefers detailed_predictions.csv and returns only rows whose Final Prediction == 'Other'.
     Falls back to listing cropped_results folder if CSV missing.
     """
-    p = _paths()
+    request_id = request.args.get("request_id")
+    if not request_id:
+        return jsonify({"error": "missing request_id"}), 400
+
+    p = _paths(request_id)
     base = p['output_dir']
     cropped = p['cropped_dir']
     detailed_csv = p['detailed_csv']
@@ -219,132 +207,153 @@ def crop_list():
                     fname = (r.get('Image Name') or '').strip()
                     if not fname:
                         continue
-                    final_pred = (r.get('Final Prediction') or '').strip().lower()
-                    if final_pred == 'other':
+                    
                         # build url relative to static/
-                        rel = os.path.join('output', 'cropped_results', fname).replace('\\', '/')
-                        url = url_for('static', filename=rel)
-                        items.append({
-                            "filename": fname,
-                            "raw_prediction": r.get('Raw Prediction', ''),
-                            "confidence": r.get('Confidence', ''),
-                            "final": r.get('Final Prediction', '') or 'Other',
-                            "url": url
-                        })
+                    rel = os.path.join('output', request_id, 'cropped_results', fname).replace('\\', '/')
+                    url = url_for('static', filename=rel)
+                    items.append({
+                        "filename": fname,
+                        "raw_prediction": r.get('Raw Prediction', ''),
+                        "confidence": r.get('Confidence', ''),
+                        "final": r.get('Final Prediction', '') or 'Other',
+                        "edited_to": r.get('Edited_to', 'N/A'),
+                        "url": url
+                    })
         except Exception as e:
             app.logger.warning("crop_list: failed to read detailed CSV %s: %s", detailed_csv, e)
 
     return jsonify({"items": items})
 
-# ------------------------------
-# update_crop: create edited sidecar files in static/output
-# ------------------------------
+
 @app.route('/update_crop', methods=['POST'])
 def update_crop():
-    """
-    POST JSON:
-      { "filename": "insect_1.jpg", "new_class": "Mayfly" }
-    Behavior:
-      - updates canonical detailed_predictions.csv (overwrites)
-      - recomputes canonical class_summary.csv (overwrites)
-      - writes edited sidecars (do NOT overwrite original coco_annotations.json or annotated_output.jpg):
-          annotations_map_edited.json
-          coco_annotations_edited.json
-          annotated_output_edited.jpg
-          class_summary_edited.csv
-    Returns JSON with edited_files relative paths (under static/output/)
-    """
     data = request.get_json(silent=True)
+
     if not data:
         return jsonify({"error": "no json body"}), 400
+
+    request_id = data.get("request_id")
+    if not request_id:
+        return jsonify({"error": "missing request_id"}), 400
 
     filename = data.get('filename')
     new_class = data.get('new_class') or "Other"
 
-    p = _paths()
+    p = _paths(request_id)
     detailed_csv = p['detailed_csv']
-    summary_csv = p['summary_csv']
-    coco_json_path = p['coco_json']
-    annotations_map_path = p['annotations_map']
     output_dir = p['output_dir']
 
-    # read detailed CSV
-    rows = _read_detailed_csv(detailed_csv)
-    if not rows:
-        return jsonify({"error": "detailed CSV not found or empty"}), 400
+    edited_detailed_csv = os.path.join(output_dir, 'detailed_predictions_edited.csv')
+    edited_summary_csv = os.path.join(output_dir, 'class_summary_edited.csv')
 
-    # update the row
-    found = False
-    for r in rows:
-        if (r.get('Image Name') or '') == filename:
-            r['Final Prediction'] = new_class
-            found = True
-            break
-    if not found:
-        return jsonify({"error": "filename not found in detailed CSV"}), 404
-
-    # write canonical detailed CSV
-    try:
-        _write_detailed_csv(detailed_csv, rows)
-    except Exception as e:
-        return jsonify({"error": "could not write detailed CSV", "detail": str(e)}), 500
-
-    # recompute canonical summary CSV (overwrites class_summary.csv)
-    try:
-        counts = _recompute_summary_csv(summary_csv, rows, class_names)
-    except Exception as e:
-        return jsonify({"error": "could not recompute summary CSV", "detail": str(e)}), 500
-
-    # prepare edited sidecar file paths
-    annotations_map_edited = os.path.join(output_dir, 'annotations_map_edited.json')
-    coco_json_edited = os.path.join(output_dir, 'coco_annotations_edited.json')
-    annotated_img_edited = os.path.join(output_dir, 'annotated_output_edited.jpg')
-    summary_csv_edited = os.path.join(output_dir, 'class_summary_edited.csv')
-
-    # load original annotations_map (must exist to rebuild coco)
-    if not os.path.exists(annotations_map_path):
-        app.logger.warning("annotations_map.json not found; cannot create edited outputs.")
-        return jsonify({"ok": True, "counts": counts, "edited_files": None})
-
-    try:
-        with open(annotations_map_path, 'r', encoding='utf-8') as f:
-            ann_map_orig = json.load(f)
-    except Exception as e:
-        app.logger.warning("failed to read annotations_map.json: %s", e)
-        return jsonify({"ok": True, "counts": counts, "edited_files": None})
-
-    # copy and update only the single crop category
-    ann_map_edited = dict(ann_map_orig)
-    if filename in ann_map_edited:
-        ann_map_edited[filename] = ann_map_edited.get(filename, {})
-        ann_map_edited[filename]['category'] = new_class
+    # 🔥 KEY FIX: load edited CSV if exists, otherwise original
+    if os.path.exists(edited_detailed_csv):
+        rows = _read_detailed_csv(edited_detailed_csv)
     else:
-        app.logger.warning("%s not found in annotations_map.json", filename)
+        rows = _read_detailed_csv(detailed_csv)
 
-    # write annotations_map_edited.json
+    if not rows:
+        return jsonify({"error": "CSV not found or empty"}), 400
+
+    found = False
+
+    for r in rows:
+        if r.get('Image Name') == filename:
+            r['Edited_to'] = new_class
+            found = True
+        else:
+            # preserve previous edits
+            r['Edited_to'] = r.get('Edited_to', 'N/A')
+
+    if not found:
+        return jsonify({"error": "filename not found"}), 404
+
+    # --- Write edited detailed CSV ---
+    fieldnames = [
+        'Image Name',
+        'Raw Prediction',
+        'Confidence',
+        'Threshold',
+        'Final Prediction',
+        'Edited_to'
+    ]
+
+    try:
+        with open(edited_detailed_csv, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+    except Exception as e:
+        return jsonify({"error": "failed writing edited CSV", "detail": str(e)}), 500
+
+    # --- Recompute summary from edited rows ---
+    edited_counts = {c: 0 for c in class_names}
+
+    for r in rows:
+        final = r.get('Edited_to')
+        if not final or final == 'N/A':
+            final = r.get('Final Prediction')
+
+        edited_counts[final] = edited_counts.get(final, 0) + 1
+
+    try:
+        with open(edited_summary_csv, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Class', 'Count'])
+            for cls in class_names:
+                writer.writerow([cls, edited_counts.get(cls, 0)])
+    except Exception as e:
+        return jsonify({"error": "failed writing summary", "detail": str(e)}), 500
+    
+    # --- Rebuild annotations using edited CSV ---
+    annotations_map_path = p['annotations_map']
+    coco_json_edited = os.path.join(output_dir, 'coco_annotations_edited.json')
+    annotations_map_edited = os.path.join(output_dir, 'annotations_map_edited.json')
+
+    if os.path.exists(annotations_map_path):
+        try:
+            with open(annotations_map_path, 'r', encoding='utf-8') as f:
+                ann_map_orig = json.load(f)
+        except Exception as e:
+            app.logger.warning(f"Failed to load annotations_map.json: {e}")
+            ann_map_orig = {}
+    else:
+        ann_map_orig = {}
+
+    # Apply edits from CSV to annotation map
+    ann_map_edited = dict(ann_map_orig)
+
+    for r in rows:
+        fname = r.get('Image Name')
+        edited = r.get('Edited_to')
+
+        if fname in ann_map_edited:
+            if edited and edited != 'N/A':
+                ann_map_edited[fname]['category'] = edited
+
+    # Save edited annotation map
     try:
         with open(annotations_map_edited, 'w', encoding='utf-8') as f:
             json.dump(ann_map_edited, f, indent=2)
     except Exception as e:
-        app.logger.warning("could not write annotations_map_edited.json: %s", e)
+        app.logger.warning(f"Failed to write annotations_map_edited.json: {e}")
 
-    # write edited summary CSV
+    # --- Generate COCO from edited annotations ---
     try:
-        edited_counts = _recompute_summary_csv(summary_csv_edited, rows, class_names)
+        from utils.inference_pipeline import convert_to_coco
     except Exception as e:
-        app.logger.warning("could not write class_summary_edited.csv: %s", e)
-        edited_counts = counts
-
-    # build edited COCO and annotated image using utils functions (if available)
-    try:
-        from utils.inference_pipeline import convert_to_coco, visualize_coco_annotations
-    except Exception as e:
-        app.logger.warning("Could not import convert_to_coco or visualize_coco_annotations: %s", e)
+        app.logger.warning(f"Could not import convert_to_coco: {e}")
         convert_to_coco = None
-        visualize_coco_annotations = None
 
-    # determine original filename for convert_to_coco
+    # Get original image
+    trap_out_dir = os.path.join(app.root_path, 'static', 'trap_images', request_id)
+    imgs = [f for f in os.listdir(trap_out_dir) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+    orig_image_path = os.path.join(trap_out_dir, imgs[0]) if imgs else None
+
+    # Get original filename from original COCO
+    coco_json_path = p['coco_json']
     original_fname = None
+
     if os.path.exists(coco_json_path):
         try:
             with open(coco_json_path, 'r', encoding='utf-8') as f:
@@ -352,39 +361,25 @@ def update_crop():
             if old.get('images'):
                 original_fname = old['images'][0].get('file_name')
         except Exception:
-            original_fname = None
+            pass
 
-    # --- Determine the original full-size image ---
-    orig_image_path = None
-
-    # Folder where the single original image is always stored
-    trap_out_dir = os.path.join(app.root_path, 'static', 'trap_images')
-    if os.path.isdir(trap_out_dir):
-    # list image files in trap_images
-        imgs = [f for f in os.listdir(trap_out_dir)
-                if f.lower().endswith((".jpg", ".jpeg", ".png"))]
-
-        if len(imgs) >= 1:
-                # ALWAYS take the first image
-            orig_image_path = os.path.join(trap_out_dir, imgs[0])
-            app.logger.debug(f"Using original image: {orig_image_path}")
-        else:
-            app.logger.warning("No images found in output/trap_images/")
-    else:
-        app.logger.warning("output/trap_images/ folder not found!")
-    if convert_to_coco:
+    if convert_to_coco and orig_image_path:
         try:
-            coco_dict_edited = convert_to_coco(ann_map_edited,original_filename=original_fname, image_path=orig_image_path)
-            with open(coco_json_edited, 'w', encoding='utf-8') as f:
-                json.dump(coco_dict_edited, f, indent=2)
-        except Exception as e:
-            app.logger.warning("Error creating coco_annotations_edited.json: %s", e)
+            coco_dict = convert_to_coco(
+                ann_map_edited,
+                original_filename=original_fname,
+                image_path=orig_image_path
+            )
 
+            with open(coco_json_edited, 'w', encoding='utf-8') as f:
+                json.dump(coco_dict, f, indent=2)
+        except Exception as e:
+            app.logger.warning(f"Failed to generate edited COCO JSON: {e}")
+    # --- Return files ---
     edited_files_rel = {
-        "annotations_map_edited": "output/annotations_map_edited.json",
-        "coco_json_edited": "output/coco_annotations_edited.json",
-        "annotated_img_edited": "output/annotated_output_edited.jpg",
-        "summary_csv_edited": "output/class_summary_edited.csv"
+        "summary_csv_edited": f"output/{request_id}/class_summary_edited.csv",
+        "detailed_csv_edited": f"output/{request_id}/detailed_predictions_edited.csv",
+        "coco_json_edited": f"output/{request_id}/coco_annotations_edited.json"
     }
 
     return jsonify({"ok": True, "counts": edited_counts, "edited_files": edited_files_rel})
@@ -400,11 +395,17 @@ def upload_original_to_roboflow():
     import shutil
     from roboflow import Roboflow
 
+    data = request.get_json(silent=True)
+    request_id = data.get("request_id") if data else None
+
+    if not request_id:
+        return jsonify({"error": "missing request_id"}), 400
+
     # === 1. Locate image directory ===
-    trap_out_dir = os.path.join(app.root_path, 'static', 'trap_images')
+    trap_out_dir = os.path.join(app.root_path, 'static', 'trap_images', request_id)
     if not os.path.isdir(trap_out_dir):
         app.logger.warning("trap_images folder not found for Roboflow upload.")
-        return
+        return jsonify({"error": "trap_images folder not found"}), 400
 
     imgs = [f for f in os.listdir(trap_out_dir)
             if f.lower().endswith((".jpg", ".jpeg", ".png"))]
@@ -413,7 +414,7 @@ def upload_original_to_roboflow():
         return
 
     # === 2. Locate COCO annotation file ===
-    annotation_path = os.path.join(app.root_path, 'static', 'output', 'coco_annotations.json')
+    annotation_path = os.path.join(app.root_path, 'static', 'output', request_id, 'coco_annotations.json')
     if not os.path.exists(annotation_path):
         app.logger.warning("COCO annotation file not found for Roboflow upload.")
         return
@@ -460,7 +461,13 @@ def upload_original_to_roboflow():
 
 @app.route("/upload_edited_to_roboflow", methods=["POST"])
 def upload_edited_to_roboflow():
-    trap_out_dir = os.path.join(app.root_path, 'static', 'trap_images')
+    data = request.get_json(silent=True)
+    request_id = data.get("request_id") if data else None
+
+    if not request_id:
+        return jsonify({"error": "missing request_id"}), 400
+
+    trap_out_dir = os.path.join(app.root_path, 'static', 'trap_images', request_id)
     if not os.path.isdir(trap_out_dir):
         app.logger.warning("trap_images folder not found for Roboflow upload.")
         return
@@ -470,7 +477,7 @@ def upload_edited_to_roboflow():
     if not imgs:
         app.logger.warning("No images found in trap_images for Roboflow upload.")
         return
-    annotation_path = os.path.join(app.root_path, 'static', 'output', 'coco_annotations_edited.json')
+    annotation_path = os.path.join(app.root_path, 'static', 'output', request_id, 'coco_annotations_edited.json')
     if not os.path.exists(annotation_path):
         app.logger.warning("Edited COCO annotation file not found for Roboflow upload.")
         return
@@ -488,8 +495,8 @@ def upload_edited_to_roboflow():
         os.rename(current_image_path, target_image_path)  # No copy, just rename
         app.logger.debug(f"Renamed image: {imgs[0]} → {target_filename}")
 
-        rf = Roboflow(api_key=ROBOFLOW_API_KEY)
-        rf_project = rf.workspace("insectai").project("results_test-9n8mo")
+    rf = Roboflow(api_key=ROBOFLOW_API_KEY)
+    rf_project = rf.workspace("insectai").project("results_test-9n8mo")
     try:
         response = rf_project.upload(
             image_path=target_image_path,

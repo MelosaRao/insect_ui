@@ -21,7 +21,7 @@
   h3 { font-size: 1.3rem; margin-bottom: 10px; color: white; }
   .upload-wrapper { margin-top: 18px; text-align:center; }
   .btn { cursor:pointer; padding:8px 14px; border-radius:6px; border: none; }
-  .btn-white { background: white; color: black; font-weight: 700; }
+  .btn-white { background: white; color: black; font-weight: 700; margin-top: 6px; margin-right: 6px; margin-bottom: 6px; margin-left: 6px; }
   .small { font-size:0.9rem; color:#ddd; }
   img.preview { max-width:100%; border-radius:8px; border:2px solid #fff; display:block; margin: 8px auto; }
 
@@ -42,7 +42,7 @@
   <div class="container-wide">
     <div class="card">
       <h1>Upload your sticky trap image</h1>
-      <p class="small">Note: images and results are not stored permanently. Each new upload clears prior outputs.</p>
+      <p class="small">Note: images and results are not stored permanently. You will not be able to access your results after leaving the page. All images and results are cleared before 11.00 PM are cleared by 11.59 PM on the same day.</p>
 
       <form method="POST" action="" enctype="multipart/form-data" onsubmit="showLoader()">
         {{ form.hidden_tag() }}
@@ -85,10 +85,11 @@
                 <li><strong>{{ cls }}</strong>: {{ count }}</li>
               {% endfor %}
             </ul>
-
+            <p class="small" style="margin-top:12px; font-weight:bold;">Average confidence: {{ avg_confidence }}%</p>
             <p class="small" style="margin-top:12px;">
-              Use the inline editor below to review crops labeled <strong>Other</strong>.
+              Use the inline editor below to review and correct all detections.
               Saving creates edited sidecar files (COCO + annotated image + summary) — original outputs remain unchanged.
+              Please click save to save your changes before proceeding to the next crop. You can filter crops by predicted/edited class using the dropdown. You can also select images with corresdonding IDs from Detailed CSV from the select insect dropdown. Once you're satisfied with your edits, you can upload the edited results to Roboflow to update your dataset (this will overwrite the existing image and annotations in your Roboflow dataset, so please be sure before uploading).
             </p>
           </div>
 
@@ -98,9 +99,21 @@
 
       <!-- Inline editor appears only after processed -->
       <div id="inline-editor" class="card" style="margin-top:18px;">
-        <h3 style="margin-top:0;">Review 'Other' crops — correct labels</h3>
+        <h3 style="margin-top:0;">Review crops and correct labels</h3>
 
         <div id="editor-controls">
+          <label for="categoryFilter">Filter:</label>
+          <select id="categoryFilter">
+            <option value="ALL">All</option>
+            {% for c in ['Caddisfly','Dipteran','Mayfly','Other','Stonefly','Terrestrial'] %}
+              <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+
+          <label for="idSelect">Select insect:</label>
+          <select id="idSelect">
+            <option value="">-- Select --</option>
+          </select>
           <button id="prevCrop" class="btn" type="button">◀ Prev</button>
           <button id="nextCrop" class="btn" type="button">Next ▶</button>
 
@@ -112,7 +125,7 @@
           </select>
 
           <button id="saveCrop" class="btn btn-white" type="button">Save</button>
-          <button id="upload-edited-to-roboflow" class="btn btn-white" type="button" style="margin-left:12px;">Upload Edited to Roboflow</button>  
+          <button id="upload-edited-to-roboflow" class="btn btn-white" type="button" >Upload Edited to Roboflow</button>  
           <div id="editorStatus" class="small" style="margin-left:8px;"></div>
         </div>
 
@@ -127,6 +140,7 @@
             <div style="margin-top:8px;">
               <a id="downloadEditedSummary" class="btn btn-white" style="display:none;" href="#" download>Download Edited Summary CSV</a>
               <a id="downloadEditedCoco" class="btn btn-white" style="display:none;" href="#" download>Download Edited COCO JSON</a>
+              <a id="downloadEditedDetailed" class="btn btn-white" style="display:none;" href="#" download>Download Edited Detailed CSV</a>
             </div>
           </div>
         </div>
@@ -152,6 +166,7 @@
   }
 
   (function initEditor(){
+    const request_id = "{{ request_id }}";
     const processed = {{ 'true' if processed else 'false' }};
     if (!processed) return;
 
@@ -159,6 +174,7 @@
     document.getElementById('inline-editor').style.display = 'block';
 
     let items = [];
+    let filteredItems = [];
     let idx = 0;
 
     const cropPreview = document.getElementById('cropPreview');
@@ -173,12 +189,26 @@
     const uploadEditedToRoboflowBtn = document.getElementById('upload-edited-to-roboflow');
     const uploadOriginalToRoboflowBtn = document.getElementById('upload-to-roboflow');
 
+    const idSelect = document.getElementById('idSelect');
+    const categoryFilter = document.getElementById('categoryFilter');
+
+    function populateDropdown(list) {
+      idSelect.innerHTML = '<option value="">-- Select --</option>';
+
+      list.forEach((it, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = `${index + 1} - ${it.filename}`;
+        idSelect.appendChild(option);
+      });
+    }
+
      uploadOriginalToRoboflowBtn.onclick = function() {
       if (!confirm("Are you sure you want to upload the original image to Roboflow? This will overwrite the existing image in your Roboflow dataset.")) {
         return;
       }
       status.textContent = "Uploading original image to Roboflow...";
-      fetch('/upload_original_to_roboflow', { method: 'POST' }).then(r => r.json()).then(j => {
+      fetch('/upload_original_to_roboflow', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ request_id: request_id }) }).then(r => r.json()).then(j => {
         if (j.ok) {
           status.textContent = "Original image uploaded to Roboflow.";
         } else {
@@ -195,7 +225,7 @@
         return;
       }
       status.textContent = "Uploading edited image and annotations to Roboflow...";
-      fetch('/upload_edited_to_roboflow', { method: 'POST' }).then(r => r.json()).then(j => {
+      fetch('/upload_edited_to_roboflow', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ request_id: request_id }) }).then(r => r.json()).then(j => {
         if (j.ok) {
           status.textContent = "Edited image and annotations uploaded to Roboflow.";
         } else {
@@ -209,19 +239,27 @@
 
     status.textContent = "Loading crops...";
 
-    fetch('/crop_list').then(r => r.json()).then(j => {
+  // Load data
+  fetch(`/crop_list?request_id=${request_id}`)
+    .then(r => r.json())
+    .then(j => {
       items = j.items || [];
+      filteredItems = items;
+
       if (!items.length) {
-        status.textContent = "No 'Other' crops to review.";
+        status.textContent = "No crops to review.";
         cropPreview.src = SAMPLE_IMAGE_PATH;
-        // hide download links if present
         downloadEditedSummary.style.display = 'none';
         downloadEditedCoco.style.display = 'none';
         return;
       }
+
+      // populate dropdown + show first item
+      populateDropdown(filteredItems);
       idx = 0;
       showIdx();
-    }).catch(e => {
+    })
+    .catch(e => {
       console.error(e);
       status.textContent = "Failed to load crops.";
       cropPreview.src = SAMPLE_IMAGE_PATH;
@@ -229,27 +267,67 @@
       downloadEditedCoco.style.display = 'none';
     });
 
+
+  //CATEGORY FILTER (OUTSIDE fetch)
+  categoryFilter.onchange = function() {
+  const selected = categoryFilter.value;
+
+  if (selected === "ALL") {
+    filteredItems = items;
+  } else {
+    filteredItems = items.filter(it => {
+      const current = (it.edited_to && it.edited_to !== "N/A")
+        ? it.edited_to
+        : it.final;
+
+      return current === selected;
+    });
+  }
+
+  // Always reset index
+  idx = 0;
+
+  // Always refresh dropdown
+  populateDropdown(filteredItems);
+
+  // Handle empty state
+  if (!filteredItems.length) {
+    status.textContent = "No items in this category.";
+    cropPreview.src = "";
+    cropMeta.textContent = "";
+    return;
+  }
+
+  // IMPORTANT: restore normal UI state
+  status.textContent = "";
+  showIdx();};
+
     function showIdx(){
-      if (!items.length) return;
-      const it = items[idx];
+      if (!filteredItems.length) return;
+      const it = filteredItems[idx];
       // add cache-buster so updated files show immediately
       cropPreview.src = it.url + '?t=' + Date.now();
-      cropMeta.textContent = `${it.filename} — model: ${it.raw_prediction} (conf ${it.confidence}) — final: ${it.final}`;
-      // choose default option: model raw if available, else Other
-      if (it.raw_prediction && Array.from(classSelect.options).some(o => o.value === it.raw_prediction)) {
-        classSelect.value = it.raw_prediction;
+      let editedText = it.edited_to && it.edited_to !== "N/A" ? ` → edited to: ${it.edited_to}`: "";
+      cropMeta.textContent =`${it.filename} — model: ${it.raw_prediction} (conf ${it.confidence}) — final: ${it.final}${editedText}`;
+      if (it.edited_to && it.edited_to !== "N/A") {
+        classSelect.value = it.edited_to;
       } else {
-        classSelect.value = 'Other';
+        classSelect.value = it.final;
       }
-      status.textContent = `${idx+1} / ${items.length}`;
+      status.textContent = `${idx+1} / ${filteredItems.length}`;
     }
 
-    prevBtn.onclick = function(){ if(!items.length) return; idx = (idx - 1 + items.length) % items.length; showIdx(); };
-    nextBtn.onclick = function(){ if(!items.length) return; idx = (idx + 1) % items.length; showIdx(); };
-
+    prevBtn.onclick = function(){if(!filteredItems.length) return; idx = (idx - 1 + filteredItems.length) % filteredItems.length; showIdx();};
+    nextBtn.onclick = function(){if(!filteredItems.length) return;idx = (idx + 1) % filteredItems.length;showIdx();};
+    idSelect.onchange = function() {
+    const selectedIndex = parseInt(idSelect.value);
+    if (!isNaN(selectedIndex)) {
+      idx = selectedIndex;
+      showIdx();
+    }};
     saveBtn.onclick = function(){
-      if (!items.length) return;
-      const it = items[idx];
+      if (!filteredItems.length) return;
+      const it = filteredItems[idx];
       const newClass = classSelect.value;
       status.textContent = "Saving...";
       saveBtn.disabled = true;
@@ -257,10 +335,12 @@
       fetch('/update_crop', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ filename: it.filename, new_class: newClass })
+        body: JSON.stringify({ filename: it.filename, new_class: newClass, request_id: request_id })
       }).then(r => r.json()).then(j => {
         saveBtn.disabled = false;
         if (j.ok) {
+          filteredItems[idx].edited_to = newClass;
+          populateDropdown(filteredItems);
           status.textContent = "Saved.";
           // create download links if server provided them
           if (j.edited_files) {
@@ -273,8 +353,10 @@
               downloadEditedCoco.href = base + j.edited_files.coco_json_edited;
               downloadEditedCoco.style.display = 'inline-block';
             }
-            // Update in-memory item to new final (keeps it visible unless you remove it intentionally)
-            items[idx].final = newClass;
+            if (j.edited_files.detailed_csv_edited) {
+              downloadEditedDetailed.href = base + j.edited_files.detailed_csv_edited;
+              downloadEditedDetailed.style.display = 'inline-block';
+            }
             showIdx();
           } else {
             status.textContent = "Saved (no edited assets produced).";
