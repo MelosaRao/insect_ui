@@ -117,7 +117,7 @@ def visualize_coco_annotations(coco_json_path, image_path, output_path):
     cv2.imwrite(output_path, img)
     print(f"✅ Annotated image saved to: {output_path}")
 
-def run_inference(image_path, output_dir, original_filename):
+def run_inference(image_path, output_dir, original_filename, metadata={}):
     print("\n🚀 Starting inference pipeline...")
     start_time = time.time()
 
@@ -203,8 +203,8 @@ def run_inference(image_path, output_dir, original_filename):
     # --- Summary CSV ---
     with open(summary_csv, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['dipteran_small', 'terrestrial_small', 'caddisfly_large', 'stonefly_large', 'mayfly_large', 'other_small'])
-        writer.writerow([class_counts.get('Dipteran', 0), class_counts.get('Terrestrial', 0), class_counts.get('Caddisfly', 0), class_counts.get('Stonefly', 0), class_counts.get('Mayfly', 0), class_counts.get('Other', 0)])
+        writer.writerow(['sample_id','side_or_trapnum','watershed', 'date','dipteran_small', 'terrestrial_small', 'caddisfly_large', 'stonefly_large', 'mayfly_large', 'other_small'])
+        writer.writerow([metadata.get('sample_id', ''), metadata.get('side_or_trapnum', ''), metadata.get('watershed', ''), metadata.get('date', ''), class_counts.get('Dipteran', 0), class_counts.get('Terrestrial', 0), class_counts.get('Caddisfly', 0), class_counts.get('Stonefly', 0), class_counts.get('Mayfly', 0), class_counts.get('Other', 0)])
     print(f"✅ Summary CSV saved to: {summary_csv}")
 
     # --- COCO + Annotated Image ---

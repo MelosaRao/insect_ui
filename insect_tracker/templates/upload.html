@@ -47,6 +47,26 @@
       <form method="POST" action="" enctype="multipart/form-data" onsubmit="showLoader()">
         {{ form.hidden_tag() }}
 
+          <div style="margin-top:12px;">
+          {{ form.sample_id.label() }}<br>
+          {{ form.sample_id(class="form-control") }}
+        </div>
+
+        <div style="margin-top:12px;">
+          {{ form.side_or_trapnum.label() }}<br>
+          {{ form.side_or_trapnum(class="form-control") }}
+        </div>
+
+        <div style="margin-top:12px;">
+          {{ form.watershed.label() }}<br>
+          {{ form.watershed(class="form-control") }}
+        </div>
+
+        <div style="margin-top:12px;">
+          {{ form.date.label() }}<br>
+          {{ form.date(class="form-control", type="date") }}
+        </div>
+
         <div class="upload-wrapper">
           {{ form.picture.label() }}<br>
           {{ form.picture(class="form-control-file") }}

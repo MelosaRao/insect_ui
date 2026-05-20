@@ -84,6 +84,12 @@ def upload():
            
             picture_file, trap_folder = save_trap_picture(form.picture.data, request_id)
             image_path = os.path.join(trap_folder, picture_file)
+            metadata = {
+                "sample_id": form.sample_id.data or "",
+                "side_or_trapnum": form.side_or_trapnum.data or "",
+                "watershed": form.watershed.data or "",
+                "date": form.date.data.strftime('%m/%d/%Y') if form.date.data else ""
+            }
 
             # Base output folder
             output_root = os.path.join(app.root_path, 'static', 'output')
@@ -98,7 +104,7 @@ def upload():
 
             # Run inference pipeline (it writes outputs into output_dir) ===
             original_filename = form.picture.data.filename
-            results = run_inference(image_path=image_path, output_dir=output_dir, original_filename=original_filename)
+            results = run_inference(image_path=image_path, output_dir=output_dir, original_filename=original_filename, metadata=metadata)
 
             # === 6. Pass results to the template ===
             # NOTE: we point urls to static/output/...
@@ -161,17 +167,6 @@ def _write_detailed_csv(path, rows):
             out = {k: r.get(k, "") for k in fieldnames}
             writer.writerow(out)
 
-def _recompute_summary_csv(path, rows, class_names):
-    counts = {c: 0 for c in class_names}
-    for r in rows:
-        final = (r.get('Final Prediction') or '').strip() or 'Other'
-        counts[final] = counts.get(final, 0) + 1
-    with open(path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow(['Class', 'Count'])
-        for cls in class_names:
-            writer.writerow([cls, counts.get(cls, 0)])
-    return counts
 
 # Keep class_names consistent with inference_pipeline.py
 class_names = ['Caddisfly', 'Dipteran', 'Mayfly', 'Other', 'Stonefly', 'Terrestrial']
@@ -242,6 +237,7 @@ def update_crop():
     p = _paths(request_id)
     detailed_csv = p['detailed_csv']
     output_dir = p['output_dir']
+    summary_csv = p['summary_csv']
 
     edited_detailed_csv = os.path.join(output_dir, 'detailed_predictions_edited.csv')
     edited_summary_csv = os.path.join(output_dir, 'class_summary_edited.csv')
@@ -296,11 +292,21 @@ def update_crop():
 
         edited_counts[final] = edited_counts.get(final, 0) + 1
 
+    metadata = {}
+    with open(summary_csv, newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        first_row = next(reader)
+
+        metadata["sample_id"] = first_row.get("sample_id", "")
+        metadata["side_or_trapnum"] = first_row.get("side_or_trapnum", "")
+        metadata["watershed"] = first_row.get("watershed", "")
+        metadata["date"] = first_row.get("date", "")
+
     try:
         with open(edited_summary_csv, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['dipteran_small', 'terrestrial_small', 'caddisfly_large', 'stonefly_large', 'mayfly_large', 'other_small'])
-            writer.writerow([edited_counts.get('Dipteran', 0), edited_counts.get('Terrestrial', 0), edited_counts.get('Caddisfly', 0), edited_counts.get('Stonefly', 0), edited_counts.get('Mayfly', 0), edited_counts.get('Other', 0)])
+            writer.writerow(['sample_id','side_or_trapnum','watershed', 'date','dipteran_small', 'terrestrial_small', 'caddisfly_large', 'stonefly_large', 'mayfly_large', 'other_small'])
+            writer.writerow([metadata["sample_id"], metadata["side_or_trapnum"], metadata["watershed"], metadata["date"], edited_counts.get('Dipteran', 0), edited_counts.get('Terrestrial', 0), edited_counts.get('Caddisfly', 0), edited_counts.get('Stonefly', 0), edited_counts.get('Mayfly', 0), edited_counts.get('Other', 0)])
     except Exception as e:
         return jsonify({"error": "failed writing summary", "detail": str(e)}), 500
     
@@ -443,7 +449,7 @@ def upload_original_to_roboflow():
 
 
     rf = Roboflow(api_key=ROBOFLOW_API_KEY)
-    rf_project = rf.workspace("insectai").project("results_test-9n8mo")
+    rf_project = rf.workspace("hbef-bugz").project("gcpuploadedimages")
 
     try:
         response = rf_project.upload(
@@ -495,7 +501,7 @@ def upload_edited_to_roboflow():
         app.logger.debug(f"Renamed image: {imgs[0]} → {target_filename}")
 
     rf = Roboflow(api_key=ROBOFLOW_API_KEY)
-    rf_project = rf.workspace("insectai").project("results_test-9n8mo")
+    rf_project = rf.workspace("hbef-bugz").project("gcpuploadedimages")
     try:
         response = rf_project.upload(
             image_path=target_image_path,
@@ -548,8 +554,8 @@ def monitor_roboflow_images():
     import requests
 
     API_KEY = ROBOFLOW_API_KEY
-    WORKSPACE = "insectai"
-    PROJECT = "results_test-9n8mo"
+    WORKSPACE = "hbef-bugz"
+    PROJECT = "gcpuploadedimages"
 
     url = f"https://api.roboflow.com/{WORKSPACE}/{PROJECT}?api_key={API_KEY}"
     response = requests.get(url)
