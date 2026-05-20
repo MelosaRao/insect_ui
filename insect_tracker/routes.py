@@ -299,9 +299,8 @@ def update_crop():
     try:
         with open(edited_summary_csv, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['Class', 'Count'])
-            for cls in class_names:
-                writer.writerow([cls, edited_counts.get(cls, 0)])
+            writer.writerow(['dipteran_small', 'terrestrial_small', 'caddisfly_large', 'stonefly_large', 'mayfly_large', 'other_small'])
+            writer.writerow([edited_counts.get('Dipteran', 0), edited_counts.get('Terrestrial', 0), edited_counts.get('Caddisfly', 0), edited_counts.get('Stonefly', 0), edited_counts.get('Mayfly', 0), edited_counts.get('Other', 0)])
     except Exception as e:
         return jsonify({"error": "failed writing summary", "detail": str(e)}), 500
     
@@ -444,12 +443,14 @@ def upload_original_to_roboflow():
 
 
     rf = Roboflow(api_key=ROBOFLOW_API_KEY)
-    rf_project = rf.workspace("hbef-bugz").project("gcpuploadedimages")
+    rf_project = rf.workspace("insectai").project("results_test-9n8mo")
 
     try:
         response = rf_project.upload(
             image_path=target_image_path,
-            annotation_path=annotation_path)
+            annotation_path=annotation_path,
+            is_prediction=False,
+        )
         app.logger.info(f"Upload successful: {response}")
         monitor_roboflow_images()  # Check if we need to send an alert after upload
         return jsonify({"ok": True,})
@@ -494,11 +495,13 @@ def upload_edited_to_roboflow():
         app.logger.debug(f"Renamed image: {imgs[0]} → {target_filename}")
 
     rf = Roboflow(api_key=ROBOFLOW_API_KEY)
-    rf_project = rf.workspace("hbef-bugz").project("gcpuploadedimages")
+    rf_project = rf.workspace("insectai").project("results_test-9n8mo")
     try:
         response = rf_project.upload(
             image_path=target_image_path,
-            annotation_path=annotation_path)
+            annotation_path=annotation_path,
+            is_prediction= False,
+        )
         app.logger.info(f"Edited upload successful: {response}")
         monitor_roboflow_images()
         return jsonify({"ok": True,})
@@ -545,8 +548,8 @@ def monitor_roboflow_images():
     import requests
 
     API_KEY = ROBOFLOW_API_KEY
-    WORKSPACE = "hbef-bugz"
-    PROJECT = "gcpuploadedimages"
+    WORKSPACE = "insectai"
+    PROJECT = "results_test-9n8mo"
 
     url = f"https://api.roboflow.com/{WORKSPACE}/{PROJECT}?api_key={API_KEY}"
     response = requests.get(url)
@@ -565,3 +568,6 @@ def monitor_roboflow_images():
 
         json.dump({"threshold": threshold + STEP}, open(THRESHOLD_FILE, "w"))
         print(f"✅ Threshold updated to {threshold + STEP}")
+
+
+

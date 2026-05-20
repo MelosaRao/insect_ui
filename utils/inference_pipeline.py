@@ -203,10 +203,9 @@ def run_inference(image_path, output_dir, original_filename):
     # --- Summary CSV ---
     with open(summary_csv, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['Class', 'Count'])
-        for cls in class_names:
-            writer.writerow([cls, class_counts[cls]])
-            print(f"📊 {cls}: {class_counts[cls]}")
+        writer.writerow(['dipteran_small', 'terrestrial_small', 'caddisfly_large', 'stonefly_large', 'mayfly_large', 'other_small'])
+        writer.writerow([class_counts.get('Dipteran', 0), class_counts.get('Terrestrial', 0), class_counts.get('Caddisfly', 0), class_counts.get('Stonefly', 0), class_counts.get('Mayfly', 0), class_counts.get('Other', 0)])
+    print(f"✅ Summary CSV saved to: {summary_csv}")
 
     # --- COCO + Annotated Image ---
     coco_dict = convert_to_coco(annotations_map, original_filename,image_path)
