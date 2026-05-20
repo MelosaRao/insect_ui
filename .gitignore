@@ -30,5 +30,9 @@ models/cls_model.keras
 models/detect_model.pt
 old_models/cls_model.keras
 
+#images and clean up 
 insect_tracker/static/output/
 insect_tracker/static/trap_images/
+
+nohup.out
+cleanup.log

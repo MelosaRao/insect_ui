@@ -6,6 +6,8 @@ import cv2
 import torch
 import matplotlib
 matplotlib.use("Agg")  # Prevent GUI backend error
+import tensorflow as tf
+tf.config.set_visible_devices([], 'GPU')
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict

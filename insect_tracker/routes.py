@@ -444,14 +444,12 @@ def upload_original_to_roboflow():
 
 
     rf = Roboflow(api_key=ROBOFLOW_API_KEY)
-    rf_project = rf.workspace("insectai").project("results_test-9n8mo")
+    rf_project = rf.workspace("hbef-bugz").project("gcpuploadedimages")
 
     try:
         response = rf_project.upload(
             image_path=target_image_path,
-            annotation_path=annotation_path,
-            is_prediction=False,
-        )
+            annotation_path=annotation_path)
         app.logger.info(f"Upload successful: {response}")
         monitor_roboflow_images()  # Check if we need to send an alert after upload
         return jsonify({"ok": True,})
@@ -496,13 +494,11 @@ def upload_edited_to_roboflow():
         app.logger.debug(f"Renamed image: {imgs[0]} → {target_filename}")
 
     rf = Roboflow(api_key=ROBOFLOW_API_KEY)
-    rf_project = rf.workspace("insectai").project("results_test-9n8mo")
+    rf_project = rf.workspace("hbef-bugz").project("gcpuploadedimages")
     try:
         response = rf_project.upload(
             image_path=target_image_path,
-            annotation_path=annotation_path,
-            is_prediction= False,
-        )
+            annotation_path=annotation_path)
         app.logger.info(f"Edited upload successful: {response}")
         monitor_roboflow_images()
         return jsonify({"ok": True,})
@@ -549,8 +545,8 @@ def monitor_roboflow_images():
     import requests
 
     API_KEY = ROBOFLOW_API_KEY
-    WORKSPACE = "insectai"
-    PROJECT = "results_test-9n8mo"
+    WORKSPACE = "hbef-bugz"
+    PROJECT = "gcpuploadedimages"
 
     url = f"https://api.roboflow.com/{WORKSPACE}/{PROJECT}?api_key={API_KEY}"
     response = requests.get(url)
@@ -569,6 +565,3 @@ def monitor_roboflow_images():
 
         json.dump({"threshold": threshold + STEP}, open(THRESHOLD_FILE, "w"))
         print(f"✅ Threshold updated to {threshold + STEP}")
-
-
-
