@@ -15,10 +15,38 @@
 8. Run `python run.py` to start app locally
 
 ### Usage
-1. Run `python run.py` to start app locally
-3. Click on upload page on top menu
-4. Upload your image and click submit
-5. Results will be displayed
+1. Start the app locally:
+
+   - (Optional) Activate your virtual environment on Windows:
+
+     ```powershell
+     myenv\Scripts\activate.bat
+     ```
+
+   - Run the server:
+
+     ```bash
+     python run.py
+     ```
+
+2. Open your browser to http://127.0.0.1:5000 (or the address shown in the console).
+
+3. Upload a sticky trap image via the "Upload" page and submit. Optional fill in text fields.
+
+4. After processing you will see:
+   - Annotated image with detection boxes
+   - Detected class counts
+   - Download links for Summary CSV, Detailed CSV, and COCO JSON
+
+5. Review and correct detections using the Inline Editor:
+   - Use the category filter or the select menu to pick a crop.
+   - Change the class using the "Change to" dropdown and click "Save".
+   - A special option, "Not an Insect", prompts for confirmation. If you confirm, that choice is final for the current session and the crop is removed from the review list.
+   - Saving produces edited sidecar files (detailed CSV, summary CSV, COCO JSON) and makes download links available in the UI.
+   - Addtional Information for annotators: The Diperans are threshold at 0.4 confidence. If the model's intial prediction was Diperan and it was filtered to other becuase of low confidence, that is the intended behavior. Feel free to edit and make changes.
+
+6. Upload edited results to Roboflow using the "Upload Edited to Roboflow" button. A confirmation dialog appears because this overwrites the dataset entries on Roboflow. This updates your annotation to the dataset for future training!
 
 ### App Demo
+
 App demo available at: https://drive.google.com/file/d/1wmeEnsF9dYi3I3yFRYkSEcPqwsU9ywL0/view?usp=sharing

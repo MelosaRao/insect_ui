@@ -125,7 +125,7 @@
           <label for="categoryFilter">Filter:</label>
           <select id="categoryFilter">
             <option value="ALL">All</option>
-            {% for c in ['Caddisfly','Dipteran','Mayfly','Other','Stonefly','Terrestrial'] %}
+            {% for c in ['Caddisfly','Dipteran','Mayfly','Other','Stonefly','Terrestrial','Not an Insect'] %}
               <option value="{{ c }}">{{ c }}</option>
             {% endfor %}
           </select>
@@ -139,7 +139,7 @@
 
           <label for="classSelect" style="margin-left:6px;">Change to:</label>
           <select id="classSelect">
-            {% for c in ['Caddisfly','Dipteran','Mayfly','Other','Stonefly','Terrestrial'] %}
+            {% for c in ['Caddisfly','Dipteran','Mayfly','Other','Stonefly','Terrestrial','Not an Insect'] %}
               <option value="{{ c }}">{{ c }}</option>
             {% endfor %}
           </select>
@@ -197,6 +197,7 @@
     let filteredItems = [];
     let idx = 0;
 
+    const NOT_INSECT_LABEL = 'Not an Insect';
     const cropPreview = document.getElementById('cropPreview');
     const cropMeta = document.getElementById('cropMeta');
     const classSelect = document.getElementById('classSelect');
@@ -206,6 +207,7 @@
     const status = document.getElementById('editorStatus');
     const downloadEditedSummary = document.getElementById('downloadEditedSummary');
     const downloadEditedCoco = document.getElementById('downloadEditedCoco');
+    const downloadEditedDetailed = document.getElementById('downloadEditedDetailed');
     const uploadEditedToRoboflowBtn = document.getElementById('upload-edited-to-roboflow');
     const uploadOriginalToRoboflowBtn = document.getElementById('upload-to-roboflow');
 
@@ -349,6 +351,13 @@
       if (!filteredItems.length) return;
       const it = filteredItems[idx];
       const newClass = classSelect.value;
+
+      if (newClass === NOT_INSECT_LABEL) {
+        if (!confirm("Are you sure? If you select yes you won't be able to change your preference later and the crop will be removed from review.")) {
+          return;
+        }
+      }
+
       status.textContent = "Saving...";
       saveBtn.disabled = true;
 
@@ -359,9 +368,27 @@
       }).then(r => r.json()).then(j => {
         saveBtn.disabled = false;
         if (j.ok) {
-          filteredItems[idx].edited_to = newClass;
-          populateDropdown(filteredItems);
-          status.textContent = "Saved.";
+          if (newClass === NOT_INSECT_LABEL) {
+            items = items.filter(x => x.filename !== it.filename);
+            filteredItems = filteredItems.filter(x => x.filename !== it.filename);
+            if (!filteredItems.length) {
+              status.textContent = "Marked as Not an Insect and removed from review.";
+              cropPreview.src = "";
+              cropMeta.textContent = "";
+              populateDropdown(filteredItems);
+              return;
+            }
+            idx = idx % filteredItems.length;
+            populateDropdown(filteredItems);
+            status.textContent = "Marked as Not an Insect and removed from review.";
+            showIdx();
+          } else {
+            filteredItems[idx].edited_to = newClass;
+            populateDropdown(filteredItems);
+            status.textContent = "Saved.";
+            showIdx();
+          }
+
           // create download links if server provided them
           if (j.edited_files) {
             const base = '/static/';
@@ -377,9 +404,6 @@
               downloadEditedDetailed.href = base + j.edited_files.detailed_csv_edited;
               downloadEditedDetailed.style.display = 'inline-block';
             }
-            showIdx();
-          } else {
-            status.textContent = "Saved (no edited assets produced).";
           }
         } else {
           status.textContent = "Save failed.";

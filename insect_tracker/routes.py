@@ -170,6 +170,7 @@ def _write_detailed_csv(path, rows):
 
 # Keep class_names consistent with inference_pipeline.py
 class_names = ['Caddisfly', 'Dipteran', 'Mayfly', 'Other', 'Stonefly', 'Terrestrial']
+NOT_INSECT_LABEL = 'Not an Insect'
 
 # ------------------------------
 # crop_list: return crops (only those marked Other by default)
@@ -189,7 +190,8 @@ def crop_list():
     p = _paths(request_id)
     base = p['output_dir']
     cropped = p['cropped_dir']
-    detailed_csv = p['detailed_csv']
+    edited_detailed_csv = os.path.join(base, 'detailed_predictions_edited.csv')
+    detailed_csv = edited_detailed_csv if os.path.exists(edited_detailed_csv) else p['detailed_csv']
 
     items = []
     app.logger.debug("crop_list: looking in %s", base)
@@ -242,7 +244,7 @@ def update_crop():
     edited_detailed_csv = os.path.join(output_dir, 'detailed_predictions_edited.csv')
     edited_summary_csv = os.path.join(output_dir, 'class_summary_edited.csv')
 
-    # 🔥 KEY FIX: load edited CSV if exists, otherwise original
+    # KEY FIX: load edited CSV if exists, otherwise original
     if os.path.exists(edited_detailed_csv):
         rows = _read_detailed_csv(edited_detailed_csv)
     else:
@@ -334,7 +336,10 @@ def update_crop():
 
         if fname in ann_map_edited:
             if edited and edited != 'N/A':
-                ann_map_edited[fname]['category'] = edited
+                if edited == NOT_INSECT_LABEL:
+                    ann_map_edited[fname]['category'] = None
+                else:
+                    ann_map_edited[fname]['category'] = edited
 
     # Save edited annotation map
     try:
