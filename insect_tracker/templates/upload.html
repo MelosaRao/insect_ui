@@ -166,6 +166,37 @@
         </div>
       </div>
 
+      <!-- Add New Annotation -->
+      <div id="add-annotation" class="card" style="margin-top:18px; display:none;">
+        <h3 style="margin-top:0;">Add a new annotation</h3>
+        <p class="small">Draw a box around an insect that wasn't detected, choose its class, and save. Existing detections are shown as yellow reference boxes.</p>
+
+        <div id="addAnnotationControls" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+          <label for="newClassSelect">Class:</label>
+          <select id="newClassSelect">
+            {% for c in ['Caddisfly','Dipteran','Mayfly','Other','Stonefly','Terrestrial'] %}
+              <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+
+          <button id="saveNewAnnotation" class="btn btn-white" type="button" disabled>Save New Annotation</button>
+          <button id="clearNewBox" class="btn" type="button">Clear Box</button>
+          <button id="upload-new-to-roboflow" class="btn btn-white" type="button">Upload New Annotations to Roboflow</button>
+          <div id="addAnnotationStatus" class="small" style="margin-left:8px;"></div>
+        </div>
+
+        <div id="drawWrapper" style="position:relative; display:inline-block; max-width:100%;">
+          <img id="fullTrapImage" src="" alt="trap image" style="max-width:100%; display:block; border-radius:6px; border:2px solid #fff;" />
+          <canvas id="drawCanvas" style="position:absolute; top:0; left:0; cursor:crosshair;"></canvas>
+        </div>
+
+        <div class="links" style="margin-top:10px;">
+          <a id="downloadNewSummary" class="btn btn-white" style="display:none;" href="#" download>Download Summary CSV</a>
+          <a id="downloadNewDetailed" class="btn btn-white" style="display:none;" href="#" download>Download Detailed CSV</a>
+          <a id="downloadNewCoco" class="btn btn-white" style="display:none;" href="#" download>Download COCO JSON</a>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -261,33 +292,39 @@
 
     status.textContent = "Loading crops...";
 
-  // Load data
-  fetch(`/crop_list?request_id=${request_id}`)
-    .then(r => r.json())
-    .then(j => {
-      items = j.items || [];
-      filteredItems = items;
+  function loadCropList() {
+    return fetch(`/crop_list?request_id=${request_id}`)
+      .then(r => r.json())
+      .then(j => {
+        items = j.items || [];
+        filteredItems = items;
 
-      if (!items.length) {
-        status.textContent = "No crops to review.";
+        if (!items.length) {
+          status.textContent = "No crops to review.";
+          cropPreview.src = SAMPLE_IMAGE_PATH;
+          downloadEditedSummary.style.display = 'none';
+          downloadEditedCoco.style.display = 'none';
+          return;
+        }
+
+        // populate dropdown + show first item
+        populateDropdown(filteredItems);
+        idx = 0;
+        showIdx();
+      })
+      .catch(e => {
+        console.error(e);
+        status.textContent = "Failed to load crops.";
         cropPreview.src = SAMPLE_IMAGE_PATH;
         downloadEditedSummary.style.display = 'none';
         downloadEditedCoco.style.display = 'none';
-        return;
-      }
+      });
+  }
 
-      // populate dropdown + show first item
-      populateDropdown(filteredItems);
-      idx = 0;
-      showIdx();
-    })
-    .catch(e => {
-      console.error(e);
-      status.textContent = "Failed to load crops.";
-      cropPreview.src = SAMPLE_IMAGE_PATH;
-      downloadEditedSummary.style.display = 'none';
-      downloadEditedCoco.style.display = 'none';
-    });
+  window.__insectEditor = { refreshCropList: loadCropList };
+
+  // Load data
+  loadCropList();
 
 
   //CATEGORY FILTER (OUTSIDE fetch)
@@ -405,6 +442,10 @@
               downloadEditedDetailed.style.display = 'inline-block';
             }
           }
+
+          if (window.__insectAnnotator && window.__insectAnnotator.refreshOverlay) {
+            window.__insectAnnotator.refreshOverlay();
+          }
         } else {
           status.textContent = "Save failed.";
           console.error(j);
@@ -416,5 +457,186 @@
       });
     };
     })();
+
+  (function initAddAnnotation(){
+    const request_id = "{{ request_id }}";
+    const processed = {{ 'true' if processed else 'false' }};
+    if (!processed) return;
+
+    document.getElementById('add-annotation').style.display = 'block';
+
+    const wrapper = document.getElementById('drawWrapper');
+    const img = document.getElementById('fullTrapImage');
+    const canvas = document.getElementById('drawCanvas');
+    const ctx = canvas.getContext('2d');
+    const classSelect = document.getElementById('newClassSelect');
+    const saveBtn = document.getElementById('saveNewAnnotation');
+    const clearBtn = document.getElementById('clearNewBox');
+    const uploadBtn = document.getElementById('upload-new-to-roboflow');
+    const status = document.getElementById('addAnnotationStatus');
+    const downloadSummary = document.getElementById('downloadNewSummary');
+    const downloadDetailed = document.getElementById('downloadNewDetailed');
+    const downloadCoco = document.getElementById('downloadNewCoco');
+
+    let existingBoxes = [];
+    let drawing = false;
+    let startX = 0, startY = 0;
+    let currentBox = null; // in displayed (canvas) coords
+    let scaleX = 1, scaleY = 1;
+
+    function resizeCanvas() {
+      canvas.width = img.clientWidth;
+      canvas.height = img.clientHeight;
+      wrapper.style.width = img.clientWidth + 'px';
+      scaleX = img.naturalWidth / img.clientWidth;
+      scaleY = img.naturalHeight / img.clientHeight;
+      redraw();
+    }
+
+    function redraw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = '12px sans-serif';
+      existingBoxes.forEach(b => {
+        const [bx, by, bw, bh] = b.bbox;
+        const dx = bx / scaleX, dy = by / scaleY, dw = bw / scaleX, dh = bh / scaleY;
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255,255,0,0.9)';
+        ctx.strokeRect(dx, dy, dw, dh);
+        ctx.fillStyle = 'rgba(255,255,0,0.9)';
+        ctx.fillText(b.category, dx + 2, dy - 4 < 10 ? dy + 12 : dy - 4);
+      });
+      if (currentBox) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(0,255,255,0.95)';
+        ctx.strokeRect(currentBox.x, currentBox.y, currentBox.w, currentBox.h);
+      }
+    }
+
+    function loadOverlay() {
+      return fetch(`/annotation_overlay?request_id=${request_id}`)
+        .then(r => r.json())
+        .then(j => {
+          existingBoxes = j.boxes || [];
+          redraw();
+        })
+        .catch(e => console.error(e));
+    }
+
+    window.__insectAnnotator = { refreshOverlay: loadOverlay };
+
+    img.onload = resizeCanvas;
+    window.addEventListener('resize', resizeCanvas);
+    img.src = `/trap_image?request_id=${request_id}`;
+
+    canvas.addEventListener('mousedown', function(e){
+      const rect = canvas.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+      drawing = true;
+      currentBox = { x: startX, y: startY, w: 0, h: 0 };
+    });
+
+    canvas.addEventListener('mousemove', function(e){
+      if (!drawing) return;
+      const rect = canvas.getBoundingClientRect();
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      currentBox = {
+        x: Math.min(startX, curX),
+        y: Math.min(startY, curY),
+        w: Math.abs(curX - startX),
+        h: Math.abs(curY - startY)
+      };
+      redraw();
+    });
+
+    window.addEventListener('mouseup', function(){
+      if (!drawing) return;
+      drawing = false;
+      if (!currentBox || currentBox.w < 4 || currentBox.h < 4) {
+        currentBox = null;
+        saveBtn.disabled = true;
+        redraw();
+        return;
+      }
+      saveBtn.disabled = false;
+    });
+
+    clearBtn.onclick = function(){
+      currentBox = null;
+      saveBtn.disabled = true;
+      redraw();
+    };
+
+    saveBtn.onclick = function(){
+      if (!currentBox) return;
+      const bbox = [
+        Math.round(currentBox.x * scaleX),
+        Math.round(currentBox.y * scaleY),
+        Math.round(currentBox.w * scaleX),
+        Math.round(currentBox.h * scaleY)
+      ];
+      const class_name = classSelect.value;
+
+      status.textContent = "Saving...";
+      saveBtn.disabled = true;
+
+      fetch('/add_annotation', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ request_id: request_id, bbox: bbox, class_name: class_name })
+      }).then(r => r.json()).then(j => {
+        if (j.ok) {
+          status.textContent = "New annotation saved.";
+          currentBox = null;
+          loadOverlay();
+
+          if (j.edited_files) {
+            const base = '/static/';
+            if (j.edited_files.summary_csv_edited) {
+              downloadSummary.href = base + j.edited_files.summary_csv_edited;
+              downloadSummary.style.display = 'inline-block';
+            }
+            if (j.edited_files.detailed_csv_edited) {
+              downloadDetailed.href = base + j.edited_files.detailed_csv_edited;
+              downloadDetailed.style.display = 'inline-block';
+            }
+            if (j.edited_files.coco_json_edited) {
+              downloadCoco.href = base + j.edited_files.coco_json_edited;
+              downloadCoco.style.display = 'inline-block';
+            }
+          }
+
+          if (window.__insectEditor && window.__insectEditor.refreshCropList) {
+            window.__insectEditor.refreshCropList();
+          }
+        } else {
+          status.textContent = "Save failed: " + (j.error || "unknown error");
+          console.error(j);
+        }
+      }).catch(e => {
+        status.textContent = "Save failed (network).";
+        console.error(e);
+      }).finally(() => {
+        saveBtn.disabled = !currentBox;
+      });
+    };
+
+    uploadBtn.onclick = function(){
+      if (!confirm("Are you sure you want to upload the edited image and annotations to Roboflow? This will overwrite the existing image and annotations in your Roboflow dataset.")) {
+        return;
+      }
+      status.textContent = "Uploading edited annotations to Roboflow...";
+      fetch('/upload_edited_to_roboflow', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ request_id: request_id }) })
+        .then(r => r.json()).then(j => {
+          status.textContent = j.ok ? "Uploaded to Roboflow." : "Upload failed: " + (j.error || "unknown error");
+        }).catch(e => {
+          status.textContent = "Upload failed (network).";
+          console.error(e);
+        });
+    };
+
+    loadOverlay();
+  })();
 </script>
 {% endblock %}

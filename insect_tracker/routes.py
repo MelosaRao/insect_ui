@@ -1,8 +1,10 @@
 import os
+import re
 import secrets
 import shutil
 import json
 import csv
+import cv2
 from PIL import Image
 from flask import render_template, url_for, flash, redirect, request, send_from_directory, jsonify
 from insect_tracker import app, db, bcrypt
@@ -167,6 +169,15 @@ def _write_detailed_csv(path, rows):
             out = {k: r.get(k, "") for k in fieldnames}
             writer.writerow(out)
 
+def _find_trap_image_path(request_id):
+    trap_dir = os.path.join(app.root_path, 'static', 'trap_images', request_id)
+    if not os.path.isdir(trap_dir):
+        return None
+    imgs = [f for f in os.listdir(trap_dir) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+    if not imgs:
+        return None
+    return os.path.join(trap_dir, imgs[0])
+
 
 # Keep class_names consistent with inference_pipeline.py
 class_names = ['Caddisfly', 'Dipteran', 'Mayfly', 'Other', 'Stonefly', 'Terrestrial']
@@ -313,22 +324,21 @@ def update_crop():
         return jsonify({"error": "failed writing summary", "detail": str(e)}), 500
     
     # --- Rebuild annotations using edited CSV ---
-    annotations_map_path = p['annotations_map']
     coco_json_edited = os.path.join(output_dir, 'coco_annotations_edited.json')
     annotations_map_edited = os.path.join(output_dir, 'annotations_map_edited.json')
 
-    if os.path.exists(annotations_map_path):
+    # Load from the edited map if present (preserves manually-added annotations),
+    # otherwise fall back to the original map.
+    ann_map_source = annotations_map_edited if os.path.exists(annotations_map_edited) else p['annotations_map']
+    if os.path.exists(ann_map_source):
         try:
-            with open(annotations_map_path, 'r', encoding='utf-8') as f:
-                ann_map_orig = json.load(f)
+            with open(ann_map_source, 'r', encoding='utf-8') as f:
+                ann_map_edited = json.load(f)
         except Exception as e:
-            app.logger.warning(f"Failed to load annotations_map.json: {e}")
-            ann_map_orig = {}
+            app.logger.warning(f"Failed to load {ann_map_source}: {e}")
+            ann_map_edited = {}
     else:
-        ann_map_orig = {}
-
-    # Apply edits from CSV to annotation map
-    ann_map_edited = dict(ann_map_orig)
+        ann_map_edited = {}
 
     for r in rows:
         fname = r.get('Image Name')
@@ -393,6 +403,245 @@ def update_crop():
     }
 
     return jsonify({"ok": True, "counts": edited_counts, "edited_files": edited_files_rel})
+
+
+@app.route('/trap_image')
+def trap_image():
+    """Serve the original full-resolution trap image (dynamically resolved,
+    since the file may have been renamed by a prior Roboflow upload)."""
+    request_id = request.args.get("request_id")
+    if not request_id:
+        return jsonify({"error": "missing request_id"}), 400
+
+    path = _find_trap_image_path(request_id)
+    if not path:
+        return jsonify({"error": "trap image not found"}), 404
+
+    directory, filename = os.path.split(path)
+    return send_from_directory(directory, filename)
+
+
+@app.route('/annotation_overlay')
+def annotation_overlay():
+    """JSON: { boxes: [ { filename, bbox, category }, ... ] } for currently
+    active (non-removed) annotations, used to draw reference boxes."""
+    request_id = request.args.get("request_id")
+    if not request_id:
+        return jsonify({"error": "missing request_id"}), 400
+
+    p = _paths(request_id)
+    edited_map_path = os.path.join(p['output_dir'], 'annotations_map_edited.json')
+    map_path = edited_map_path if os.path.exists(edited_map_path) else p['annotations_map']
+
+    ann_map = {}
+    if os.path.exists(map_path):
+        try:
+            with open(map_path, 'r', encoding='utf-8') as f:
+                ann_map = json.load(f)
+        except Exception as e:
+            app.logger.warning(f"annotation_overlay: failed to read {map_path}: {e}")
+
+    boxes = [
+        {"filename": fname, "bbox": ann.get("bbox"), "category": ann.get("category")}
+        for fname, ann in ann_map.items()
+        if ann.get("category")
+    ]
+    return jsonify({"boxes": boxes})
+
+
+@app.route('/add_annotation', methods=['POST'])
+def add_annotation():
+    """Add a brand-new, manually-drawn annotation. Reuses the same
+    '_edited' sidecar files as /update_crop, so a manual box becomes
+    indistinguishable from an edited one once saved."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "no json body"}), 400
+
+    request_id = data.get("request_id")
+    if not request_id:
+        return jsonify({"error": "missing request_id"}), 400
+
+    bbox = data.get("bbox")
+    class_name = data.get("class_name")
+
+    if not bbox or len(bbox) != 4:
+        return jsonify({"error": "invalid bbox"}), 400
+    if class_name not in class_names:
+        return jsonify({"error": "invalid class_name"}), 400
+
+    try:
+        x, y, w, h = (int(round(float(v))) for v in bbox)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid bbox values"}), 400
+    if w <= 0 or h <= 0:
+        return jsonify({"error": "bbox has zero or negative size"}), 400
+
+    p = _paths(request_id)
+    output_dir = p['output_dir']
+    cropped_dir = p['cropped_dir']
+    detailed_csv = p['detailed_csv']
+    summary_csv = p['summary_csv']
+
+    edited_detailed_csv = os.path.join(output_dir, 'detailed_predictions_edited.csv')
+    edited_summary_csv = os.path.join(output_dir, 'class_summary_edited.csv')
+    annotations_map_edited = os.path.join(output_dir, 'annotations_map_edited.json')
+    coco_json_edited = os.path.join(output_dir, 'coco_annotations_edited.json')
+
+    # --- Load current annotation map (edited if present, else original, else empty) ---
+    map_source = annotations_map_edited if os.path.exists(annotations_map_edited) else p['annotations_map']
+    ann_map = {}
+    if os.path.exists(map_source):
+        try:
+            with open(map_source, 'r', encoding='utf-8') as f:
+                ann_map = json.load(f)
+        except Exception as e:
+            app.logger.warning(f"add_annotation: failed to read {map_source}: {e}")
+
+    # --- Locate + crop the original full-resolution trap image ---
+    orig_image_path = _find_trap_image_path(request_id)
+    if not orig_image_path:
+        return jsonify({"error": "original trap image not found"}), 404
+
+    img = cv2.imread(orig_image_path)
+    if img is None:
+        return jsonify({"error": "failed to read original trap image"}), 500
+
+    img_h, img_w = img.shape[:2]
+    x = max(0, min(x, img_w - 1))
+    y = max(0, min(y, img_h - 1))
+    w = max(1, min(w, img_w - x))
+    h = max(1, min(h, img_h - y))
+
+    max_idx = 0
+    for fname in ann_map.keys():
+        m = re.match(r'insect_(\d+)\.jpg$', fname)
+        if m:
+            max_idx = max(max_idx, int(m.group(1)))
+    new_filename = f"insect_{max_idx + 1}.jpg"
+
+    os.makedirs(cropped_dir, exist_ok=True)
+    crop = img[y:y + h, x:x + w]
+    cv2.imwrite(os.path.join(cropped_dir, new_filename), crop)
+
+    # --- Append row to edited detailed CSV ---
+    if os.path.exists(edited_detailed_csv):
+        rows = _read_detailed_csv(edited_detailed_csv)
+    else:
+        rows = _read_detailed_csv(detailed_csv)
+
+    rows.append({
+        'Image Name': new_filename,
+        'Raw Prediction': 'Manual',
+        'Confidence': '',
+        'Threshold': '',
+        'Final Prediction': class_name,
+        'Edited_to': class_name,
+    })
+
+    fieldnames = [
+        'Image Name',
+        'Raw Prediction',
+        'Confidence',
+        'Threshold',
+        'Final Prediction',
+        'Edited_to'
+    ]
+    try:
+        with open(edited_detailed_csv, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in rows:
+                out = {k: r.get(k, "") for k in fieldnames}
+                writer.writerow(out)
+    except Exception as e:
+        return jsonify({"error": "failed writing edited CSV", "detail": str(e)}), 500
+
+    # --- Recompute summary from edited rows ---
+    edited_counts = {c: 0 for c in class_names}
+    for r in rows:
+        final = r.get('Edited_to')
+        if not final or final == 'N/A':
+            final = r.get('Final Prediction')
+        edited_counts[final] = edited_counts.get(final, 0) + 1
+
+    metadata = {}
+    with open(summary_csv, newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        first_row = next(reader)
+        metadata["sample_id"] = first_row.get("sample_id", "")
+        metadata["side_or_trapnum"] = first_row.get("side_or_trapnum", "")
+        metadata["watershed"] = first_row.get("watershed", "")
+        metadata["date"] = first_row.get("date", "")
+
+    try:
+        with open(edited_summary_csv, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['sample_id','side_or_trapnum','watershed', 'date','dipteran_small', 'terrestrial_small', 'caddisfly_large', 'stonefly_large', 'mayfly_large', 'other_small'])
+            writer.writerow([metadata["sample_id"], metadata["side_or_trapnum"], metadata["watershed"], metadata["date"], edited_counts.get('Dipteran', 0), edited_counts.get('Terrestrial', 0), edited_counts.get('Caddisfly', 0), edited_counts.get('Stonefly', 0), edited_counts.get('Mayfly', 0), edited_counts.get('Other', 0)])
+    except Exception as e:
+        return jsonify({"error": "failed writing summary", "detail": str(e)}), 500
+
+    # --- Update annotation map + regenerate COCO ---
+    ann_map[new_filename] = {
+        "bbox": [x, y, w, h],
+        "score": 1.0,
+        "category": class_name
+    }
+    try:
+        with open(annotations_map_edited, 'w', encoding='utf-8') as f:
+            json.dump(ann_map, f, indent=2)
+    except Exception as e:
+        app.logger.warning(f"Failed to write annotations_map_edited.json: {e}")
+
+    try:
+        from utils.inference_pipeline import convert_to_coco
+    except Exception as e:
+        app.logger.warning(f"Could not import convert_to_coco: {e}")
+        convert_to_coco = None
+
+    coco_json_path = p['coco_json']
+    original_fname = None
+    if os.path.exists(coco_json_path):
+        try:
+            with open(coco_json_path, 'r', encoding='utf-8') as f:
+                old = json.load(f)
+            if old.get('images'):
+                original_fname = old['images'][0].get('file_name')
+        except Exception:
+            pass
+    if not original_fname:
+        original_fname = os.path.basename(orig_image_path)
+
+    if convert_to_coco:
+        try:
+            coco_dict = convert_to_coco(
+                ann_map,
+                original_filename=original_fname,
+                image_path=orig_image_path
+            )
+            with open(coco_json_edited, 'w', encoding='utf-8') as f:
+                json.dump(coco_dict, f, indent=2)
+        except Exception as e:
+            app.logger.warning(f"Failed to generate edited COCO JSON: {e}")
+
+    rel = os.path.join('output', request_id, 'cropped_results', new_filename).replace('\\', '/')
+    new_item = {
+        "filename": new_filename,
+        "raw_prediction": "Manual",
+        "confidence": "",
+        "final": class_name,
+        "edited_to": class_name,
+        "url": url_for('static', filename=rel)
+    }
+    edited_files_rel = {
+        "summary_csv_edited": f"output/{request_id}/class_summary_edited.csv",
+        "detailed_csv_edited": f"output/{request_id}/detailed_predictions_edited.csv",
+        "coco_json_edited": f"output/{request_id}/coco_annotations_edited.json"
+    }
+
+    return jsonify({"ok": True, "item": new_item, "counts": edited_counts, "edited_files": edited_files_rel})
+
 
 @app.route("/upload_original_to_roboflow", methods=["POST"])
 def upload_original_to_roboflow():
@@ -461,6 +710,7 @@ def upload_original_to_roboflow():
             image_path=target_image_path,
             annotation_path=annotation_path,
             is_prediction=False,
+            annotation_overwrite=True,
         )
         app.logger.info(f"Upload successful: {response}")
         monitor_roboflow_images()  # Check if we need to send an alert after upload
@@ -511,7 +761,8 @@ def upload_edited_to_roboflow():
         response = rf_project.upload(
             image_path=target_image_path,
             annotation_path=annotation_path,
-            is_prediction= False,
+            is_prediction=False,
+            annotation_overwrite=True,
         )
         app.logger.info(f"Edited upload successful: {response}")
         monitor_roboflow_images()
